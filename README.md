@@ -1,3 +1,3 @@
 # secure-scan-action
 
-![Secure Build and Scan](https://github.com/your-username/your-repo-name/actions/workflows/self-scan.yml/badge.svg)
+![Secure Build and Scan](https://github.com/sudeshgutta/secure-scan-action/actions/workflows/secure-build-scan.yml/badge.svg)
