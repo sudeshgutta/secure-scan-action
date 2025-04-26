@@ -1,10 +1,8 @@
 name: Self Scan
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+    types: [opened, reopened, edited]
 
 jobs:
   security-scan:
@@ -14,7 +12,7 @@ jobs:
       - name: Checkout the Action repository
         uses: actions/checkout@v4
 
-      - name: Run secure-scan-action on itself
+      - name: Run secure-scan-action
         uses: ./
         with:
           scanners: trivy
