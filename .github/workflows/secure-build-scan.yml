@@ -1,18 +1,22 @@
-name: Self Scan
+name: Secure Build and Scan
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     types: [opened, reopened, edited]
+  workflow_dispatch:
 
 jobs:
   security-scan:
+    name: Security Scan Job
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout the Action repository
         uses: actions/checkout@v4
 
-      - name: Run secure-scan-action
+      - name: Run Secure Scan Action
         uses: ./
         with:
           scanners: trivy
