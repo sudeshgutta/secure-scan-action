@@ -1,0 +1,21 @@
+name: Self Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the Action repository
+        uses: actions/checkout@v4
+
+      - name: Run secure-scan-action on itself
+        uses: ./
+        with:
+          scanners: trivy
+          severity: HIGH
