@@ -1,33 +1,44 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
+
+	"github.com/sudeshgutta/secure-scan-action/internal/logger"
+	"github.com/sudeshgutta/secure-scan-action/internal/trivy"
 )
 
 func main() {
-	severity := os.Getenv("INPUT_SEVERITY")
-	if severity == "" {
-		severity = "CRITICAL"
-	}
+	logger.Init()
+	logger.Log.Info("scanning...")
 
-	fmt.Println("Running filesystem scan...")
+	trivyReport, err := trivy.Scan()
+	if trivyReport != nil {
+		hasVulns := false
 
-	cmd := exec.Command("trivy", "fs", "--exit-code", "1", "--severity", severity, "--no-progress", ".")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Run()
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			fmt.Printf("Scan found vulnerabilities! Exiting with code %d\n", exitError.ExitCode())
-			os.Exit(exitError.ExitCode())
+		if len(trivyReport.Results) == 0 {
+			logger.Log.Warn("trivy scan completed, but no results were found")
 		} else {
-			fmt.Printf("Error running scanner: %v\n", err)
+			for _, result := range trivyReport.Results {
+				if len(result.Vulnerabilities) > 0 {
+					logger.Log.Info("scan found vulnerabilities", "target", result.Target, "count", len(result.Vulnerabilities))
+					hasVulns = true
+					break
+				}
+			}
+		}
+
+		if hasVulns {
+			os.Exit(1)
+		} else if err != nil {
+			logger.Log.Error("error running scanner", "err", err)
 			os.Exit(2)
+		} else {
+			logger.Log.Info("finished scan, no vulnerabilities")
+			os.Exit(0)
 		}
 	}
 
-	fmt.Println("No vulnerabilities found!")
+	// This catches nil report — likely a failed Trivy execution or parsing error
+	logger.Log.Error("trivy failed to generate report", "err", err)
+	os.Exit(3)
 }
