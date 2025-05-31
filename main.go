@@ -32,7 +32,7 @@ func main() {
 
 	findings := astgrep.ProcessTrivyReport(ctx, *trivyReport)
 
-	logger.Log.Info("Total grep findings", "count", len(findings.Matches), "findings", findings)
+	logger.Log.Info("Total grep findings", "count", len(findings), "findings", findings)
 
 	logger.Log.Info("✅ Security analysis finished successfully")
 }

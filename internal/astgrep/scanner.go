@@ -3,28 +3,45 @@ package astgrep
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/logger"
 	"github.com/sudeshgutta/secure-scan-action/internal/trivy"
 )
 
-func scanWithASTGrep(ctx context.Context, pkg string) (*Report, error) {
+func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, error) {
 	ruleJSON, err := BuildASTGrepInlineRule(pkg)
 	if err != nil {
 		logger.Log.Error("Failed to parse ast grep rule")
 		return nil, err
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "ast-grep", "scan",
+	// Create temporary output file
+	outputFile, err := os.CreateTemp("", "astgrep-output-*.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp output file: %w", err)
+	}
+	defer os.Remove(outputFile.Name())
+	outputFile.Close()
+
+	cmd := exec.CommandContext(ctx, "sg", "scan",
 		"--inline-rules", ruleJSON,
 		"--json",
 		".",
 	)
 
-	cmd.Stdout = &stdout
+	// Redirect stdout to file
+	outFile, err := os.OpenFile(outputFile.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open output file: %w", err)
+	}
+	defer outFile.Close()
+
+	cmd.Stdout = outFile
+
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -32,16 +49,26 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*Report, error) {
 		return nil, err
 	}
 
-	var matches []Match
-	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
-		logger.Log.Error("Failed to parse ast-grep output", "err", err)
+	outFile.Close() // Close before reading
+
+	// Read from file instead of memory buffer
+	data, err := os.ReadFile(outputFile.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read output file: %w", err)
+	}
+
+	output, err := ParseASTGrepJSON(data)
+	if err != nil {
 		return nil, err
 	}
 
-	return &Report{Matches: matches}, nil
+	// Analyze for the specific package
+	result := output.AnalyzePackage(pkg)
+
+	return result, nil
 }
 
-func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) Report {
+func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []string {
 	// Extract vulnerable packages
 	vulnPkgs := make(map[string]struct{})
 	for _, result := range trivyReport.Results {
@@ -53,16 +80,16 @@ func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) Repo
 	}
 	logger.Log.Info("Trivy identified vulnerable packages", "count", len(vulnPkgs))
 
-	var output Report
+	var output []string
+
 	for pkg := range vulnPkgs {
-		report, err := scanWithASTGrep(ctx, pkg)
+		result, err := scanWithASTGrep(ctx, pkg)
 		if err != nil {
 			logger.Log.Warn("AST-Grep scan failed or timed out", "pkg", pkg, "err", err)
 			continue
 		}
-		if len(report.Matches) == 0 {
-			logger.Log.Info("✅ No usage found for vulnerable package", "pkg", pkg, "report", report)
-		}
+		logger.Log.Info(result.GetSummaryString())
+		output = append(output, result.PackageName)
 	}
 	return output
 }

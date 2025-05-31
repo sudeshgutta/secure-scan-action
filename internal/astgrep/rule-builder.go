@@ -10,15 +10,17 @@ func BuildASTGrepInlineRule(pkg string) (string, error) {
 	safeID := strings.ReplaceAll(pkg, "/", "-")
 	safeID = strings.ReplaceAll(safeID, ".", "-")
 
+	ruleContent := ASTGrepImportSpecRule{
+		Kind: "import_spec",
+		Has: ASTGrepHasRegex{
+			Regex: pkg,
+		},
+	}
+
 	rule := ASTGrepRule{
 		ID:       "detect-vuln-" + safeID,
 		Language: "go",
-		Rule: ASTGrepRuleContent{
-			Pattern: fmt.Sprintf(`"%s"`, pkg), // Exact match for the import string
-			Inside: &ASTGrepRuleContent{
-				Kind: "import_spec", // This is the individual import line inside import()
-			},
-		},
+		Rule:     ruleContent,
 	}
 
 	data, err := json.Marshal(rule)
