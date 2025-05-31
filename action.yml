@@ -1,19 +1,5 @@
 name: "Secure Scan Action"
 description: "Scans your repository using most popular security scanners"
-inputs:
-  scanners:
-    description: "Comma-separated list of scanners (currently only trivy is supported)"
-    required: false
-    default: "trivy"
-  severity:
-    description: "Severity threshold for Trivy to fail the build"
-    required: false
-    default: "CRITICAL"
 runs:
   using: "docker"
   image: "Dockerfile"
-  args:
-    - "--scanners"
-    - "${{ inputs.scanners }}"
-    - "--severity"
-    - "${{ inputs.severity }}"

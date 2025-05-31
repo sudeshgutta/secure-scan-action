@@ -1,44 +1,38 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 
+	"github.com/golang-jwt/jwt"
+	"github.com/sudeshgutta/secure-scan-action/internal/astgrep"
 	"github.com/sudeshgutta/secure-scan-action/internal/logger"
 	"github.com/sudeshgutta/secure-scan-action/internal/trivy"
 )
 
 func main() {
-	logger.Init()
-	logger.Log.Info("scanning...")
-
-	trivyReport, err := trivy.Scan()
-	if trivyReport != nil {
-		hasVulns := false
-
-		if len(trivyReport.Results) == 0 {
-			logger.Log.Warn("trivy scan completed, but no results were found")
-		} else {
-			for _, result := range trivyReport.Results {
-				if len(result.Vulnerabilities) > 0 {
-					logger.Log.Info("scan found vulnerabilities", "target", result.Target, "count", len(result.Vulnerabilities))
-					hasVulns = true
-					break
-				}
-			}
-		}
-
-		if hasVulns {
-			os.Exit(1)
-		} else if err != nil {
-			logger.Log.Error("error running scanner", "err", err)
-			os.Exit(2)
-		} else {
-			logger.Log.Info("finished scan, no vulnerabilities")
-			os.Exit(0)
-		}
+	token := jwt.New(jwt.SigningMethodHS256)
+	if token != nil {
+		fmt.Println(token.Raw)
 	}
 
-	// This catches nil report — likely a failed Trivy execution or parsing error
-	logger.Log.Error("trivy failed to generate report", "err", err)
-	os.Exit(3)
+	logger.Init()
+	logger.Log.Info("🔍 Started security analysis")
+
+	ctx := context.Background()
+
+	// Run Trivy scan
+	trivyReport, err := trivy.Scan(ctx)
+	if err != nil {
+		logger.Log.Error("Trivy scan failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Log.Info("✅ Trivy analysis complete", "targets", len(trivyReport.Results))
+
+	findings := astgrep.ProcessTrivyReport(ctx, *trivyReport)
+
+	logger.Log.Info("Total grep findings", "count", len(findings.Matches), "findings", findings)
+
+	logger.Log.Info("✅ Security analysis finished successfully")
 }

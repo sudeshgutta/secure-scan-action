@@ -13,11 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout the Action repository
+      - name: ⬇️ Checkout source
         uses: actions/checkout@v4
 
-      - name: Run Secure Scan Action
+      - name: 🔐 Run Secure Scan
         uses: ./
-        with:
-          scanners: trivy
-          severity: HIGH
