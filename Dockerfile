@@ -53,8 +53,7 @@ WORKDIR /home/scanner
 ENV TRIVY_CACHE_DIR=/home/scanner/.cache/trivy
 ENV XDG_CACHE_HOME=/home/scanner/.cache
 
-# Verify all tools work (but don't fail on scanner --help since it might exit with non-zero)
-RUN trivy --version && \
-    sg --version
+# Verify all tools work
+RUN trivy --version && sg --version
 
 ENTRYPOINT ["/usr/local/bin/scanner"]
