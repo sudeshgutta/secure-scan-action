@@ -34,19 +34,27 @@ COPY --from=trivy-stage /usr/local/bin/trivy /usr/local/bin/trivy
 # Ensure binaries are executable
 RUN chmod +x /usr/local/bin/scanner /usr/local/bin/trivy
 
-# Verify all tools work
-RUN trivy --version && \
-    sg --version && \
-    scanner --help || true
-
 # Create non-root user for security
 RUN useradd -r -s /bin/false -U scanner
 
-# Set up working directory
-RUN mkdir -p /home/scanner && \
-    chown -R scanner:scanner /home/scanner
+# Set up working directory and cache directories with proper permissions
+RUN mkdir -p /home/scanner/.cache/trivy && \
+    mkdir -p /tmp/trivy && \
+    chown -R scanner:scanner /home/scanner && \
+    chown -R scanner:scanner /tmp/trivy && \
+    chmod -R 755 /home/scanner/.cache && \
+    chmod -R 755 /tmp/trivy
 
+# Switch to non-root user
 USER scanner
 WORKDIR /home/scanner
+
+# Set environment variables for cache directories
+ENV TRIVY_CACHE_DIR=/home/scanner/.cache/trivy
+ENV XDG_CACHE_HOME=/home/scanner/.cache
+
+# Verify all tools work (but don't fail on scanner --help since it might exit with non-zero)
+RUN trivy --version && \
+    sg --version
 
 ENTRYPOINT ["/usr/local/bin/scanner"]

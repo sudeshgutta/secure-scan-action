@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"os/exec"
 	"time"
 
@@ -23,7 +22,7 @@ func Scan(ctx context.Context) (*TrivyReport, error) {
 	ctx, cancel := context.WithTimeout(ctx, TRIVY_TIMEOUT)
 	defer cancel()
 
-	var outputBuffer bytes.Buffer
+	var stdout, stderr bytes.Buffer
 
 	logger.Log.Info("Running Trivy scan...")
 
@@ -33,20 +32,20 @@ func Scan(ctx context.Context) (*TrivyReport, error) {
 		"--format", TRIVY_OUTPUT_FORMAT,
 		TRIVY_SCAN_PATH,
 	)
-	cmd.Stdout = &outputBuffer
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logger.Log.Error("Trivy scan timed out")
-			return nil, errors.New("trivy scan timed out")
+			return nil, err
 		}
-		logger.Log.Error("Trivy scan failed", "err", err)
+		logger.Log.Error("Trivy scan failed", "err", err, "stderr", stderr.String())
 		return nil, err
 	}
 
 	var report TrivyReport
-	if err := json.Unmarshal(outputBuffer.Bytes(), &report); err != nil {
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		logger.Log.Error("JSON parsing failed", "err", err)
 		return nil, err
 	}
