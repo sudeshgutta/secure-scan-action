@@ -1,5 +1,5 @@
 name: "Secure Scan Action"
-description: "Scans your repository using most popular security scanners"
+description: "Scans your repository for security vulnerabilities using Trivy and analyzes vulnerable package(s) usage with AST-Grep"
 runs:
   using: "docker"
   image: "Dockerfile"

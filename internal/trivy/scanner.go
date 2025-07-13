@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	TRIVY_TIMEOUT       = 120 * time.Second
-	TRIVY_SCAN_PATH     = "."
-	TRIVY_SEVERITY      = "HIGH"
-	TRIVY_OUTPUT_FORMAT = "json"
+	TRIVY_TIMEOUT       time.Duration = 120 * time.Second
+	TRIVY_SCAN_PATH     string        = "."
+	TRIVY_SEVERITY      string        = "HIGH"
+	TRIVY_OUTPUT_FORMAT string        = "json"
 )
 
 func Scan(ctx context.Context) (*TrivyReport, error) {

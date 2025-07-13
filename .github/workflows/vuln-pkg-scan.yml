@@ -1,4 +1,4 @@
-name: Secure Build and Scan
+name: Vulnerable package scan using Secure Scan Action
 
 on:
   push:
@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  security-scan:
-    name: Security Scan Job
+  vuln-pkg-scan:
+    name: Vulnerable Package Scan Job
     runs-on: ubuntu-latest
 
     steps:
       - name: ⬇️ Checkout source
         uses: actions/checkout@v4
 
-      - name: 🔐 Run Secure Scan
+      - name: 🔐 Run Vulnerable Package Scan
         uses: ./
