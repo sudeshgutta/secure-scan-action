@@ -3,8 +3,6 @@ package rules
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/sudeshgutta/secure-scan-action/internal/logger"
 )
 
 type ASTGrepRule struct {
@@ -40,7 +38,6 @@ func BuildRule(pkg string) (string, error) {
 
 	data, err := json.Marshal(rule)
 	if err != nil {
-		logger.Log.Error("failed to marshal AST-Grep rule", "err", err)
 		return "", err
 	}
 

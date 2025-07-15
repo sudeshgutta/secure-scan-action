@@ -3,38 +3,48 @@ package astgrep
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os/exec"
+	"time"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep/rules"
 	"github.com/sudeshgutta/secure-scan-action/internal/logger"
 	"github.com/sudeshgutta/secure-scan-action/internal/trivy"
 )
 
+const (
+	ASTGREP_TIMEOUT time.Duration = 120 * time.Second
+)
+
 func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []string {
 	vulnPkgs := extractVulnerablePackages(trivyReport)
-	logger.Log.Info("Trivy identified vulnerable packages", "count", len(vulnPkgs))
+	logger.Log.Debug("setting up astgrep scan for trivy identified vulnerable packages", "count", len(vulnPkgs))
 
 	var detectedPackages []string
 	for pkg := range vulnPkgs {
 		result, err := scanWithASTGrep(ctx, pkg)
 		if err != nil {
-			logger.Log.Warn("AST-Grep scan failed or timed out", "pkg", pkg, "err", err)
+			logger.Log.Warn("astgrep scan failed or timed out for package", "pkg", pkg, "err", err)
 			continue
 		}
-		logger.Log.Info(result.GetSummaryString())
-		detectedPackages = append(detectedPackages, result.PackageName)
+		detectedPackages = append(detectedPackages, result.GetSummaryString())
 	}
 	return detectedPackages
 }
 
 func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, ASTGREP_TIMEOUT)
+	defer cancel()
+
 	//TODO: Add support for other languages
+	//TODO: Refactor to avoid redundant rule building
+	logger.Log.Debug("building ast-grep rule")
 	ruleJSON, err := rules.BuildRule(pkg)
 	if err != nil {
-		logger.Log.Error("Failed to parse ast grep rule")
 		return nil, err
 	}
 
+	logger.Log.Debug("configuring ast-grep")
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "sg", "scan",
 		"--inline-rules", ruleJSON,
@@ -44,17 +54,21 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	logger.Log.Debug("executing ast-grep to find vulnerable packages")
 	if err := cmd.Run(); err != nil {
-		logger.Log.Error("AST-Grep stderr", "err", err, "stderr", stderr.String())
 		return nil, err
 	}
 
-	output, err := ParseASTGrepJSON(stdout.Bytes())
-	if err != nil {
+	logger.Log.Debug("parsing astgrep result json")
+	var matches []ASTGrepMatch
+	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
 		return nil, err
 	}
 
-	result := output.AnalyzePackage(pkg)
+	logger.Log.Debug("analysing astgrep matches")
+	result := AnalyzePackageMatches(matches, pkg)
+
+	logger.Log.Debug("completed astgrep analysis", "pkg", pkg)
 	return result, nil
 }
 

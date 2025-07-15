@@ -11,7 +11,7 @@ import (
 
 func main() {
 	logger.Init()
-	logger.Log.Info("🔍 Started security analysis")
+	logger.Log.Info("🔍 Scanning for vulnerable packages")
 
 	ctx := context.Background()
 
@@ -20,11 +20,15 @@ func main() {
 		logger.Log.Error("Trivy scan failed", "error", err)
 		os.Exit(1)
 	}
-	logger.Log.Info("✅ Trivy analysis complete", "targets", len(trivyReport.Results))
-
+	logger.Log.Info("Trivy analysis complete")
 	findings := astgrep.ProcessTrivyReport(ctx, *trivyReport)
+	logger.Log.Info("ASTGrep analysis complete")
+	if len(findings) > 0 {
+		logger.Log.Info("🚨 Vulnerable package(s) usage found", "count", len(findings), "findings", findings)
+		os.Exit(2)
+	} else {
+		logger.Log.Info("✅ No vulnerable package(s) usage found")
+	}
 
-	logger.Log.Info("Total grep findings", "count", len(findings), "findings", findings)
-
-	logger.Log.Info("✅ Security analysis finished successfully")
+	logger.Log.Info("⚡️ Scan finished successfully")
 }
