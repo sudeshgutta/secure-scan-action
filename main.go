@@ -22,6 +22,7 @@ func main() {
 	}
 	logger.Log.Info("Trivy analysis complete")
 	findings := astgrep.ProcessTrivyReport(ctx, *trivyReport)
+	logger.Log.Info("ASTGrep analysis complete")
 	if len(findings) > 0 {
 		logger.Log.Info("🚨 Vulnerable package(s) usage found", "count", len(findings), "findings", findings)
 		os.Exit(2)
