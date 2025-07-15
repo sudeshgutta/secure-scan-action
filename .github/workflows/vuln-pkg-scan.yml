@@ -2,9 +2,6 @@ name: Vulnerable package scan using Secure Scan Action
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    types: [opened, reopened, edited]
   workflow_dispatch:
 
 jobs:
