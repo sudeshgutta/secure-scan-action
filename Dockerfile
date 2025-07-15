@@ -9,7 +9,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-w -s' -o scanner .
 
 # Stage 2: Trivy (use official image)
-FROM aquasec/trivy:latest AS trivy-stage
+FROM aquasec/trivy:0.64.1 AS trivy-stage
 
 # Stage 3: Final Runtime
 FROM node:lts-bookworm-slim
@@ -20,7 +20,7 @@ RUN apt-get update && \
     ca-certificates \
     git && \
     # Install AST-Grep
-    npm install -g @ast-grep/cli && \
+    npm install -g @ast-grep/cli@0.38.7 && \
     npm cache clean --force && \
     # Cleanup
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -52,6 +52,11 @@ WORKDIR /home/scanner
 # Set environment variables for cache directories
 ENV TRIVY_CACHE_DIR=/home/scanner/.cache/trivy
 ENV XDG_CACHE_HOME=/home/scanner/.cache
+
+LABEL org.opencontainers.image.title="Secure Scan Action"
+LABEL org.opencontainers.image.description="A GitHub Action for scanning vulnerabilities using Trivy and finding their usage with AST-Grep"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 # Verify all tools work
 RUN trivy --version && sg --version
