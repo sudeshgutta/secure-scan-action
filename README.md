@@ -16,6 +16,14 @@ A GitHub Action that scans your repository for security vulnerabilities using Tr
 3. **AST-Grep Analysis**: Finds where these packages are imported in your codebase
 4. **Result Generation**: Provides detailed reports with file locations
 
+## Exit Codes
+
+- **0**: No issues found
+- **1**: Internal error occurred
+- **2**: Vulnerabilities found
+
+These exit codes can be used in CI/CD pipelines to determine the outcome of the scan and take appropriate actions (e.g., prevent pull request merge if vulnerable usages are found).
+
 ## Local Development
 
 ```bash
