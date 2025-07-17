@@ -1,4 +1,4 @@
-name: Vulnerable package scan using Secure Scan Action
+name: Vulnerable Package Scan
 
 on:
   push:

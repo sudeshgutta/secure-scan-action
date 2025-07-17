@@ -2,6 +2,30 @@ A GitHub Action that scans your repository for security vulnerabilities using Tr
 
 ![Secure Scan Action](https://github.com/sudeshgutta/secure-scan-action/actions/workflows/vuln-pkg-scan.yml/badge.svg)
 
+## Quick Start
+
+Add the following workflow file to your repository at `.github/workflows/vuln-pkg-scan.yml` to start scanning your code for vulnerable packages using **Secure Scan Action**:
+
+```yaml
+name: Vulnerable Package Scan
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  vuln-pkg-scan:
+    name: Vulnerable Package Scan Job
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout source
+        uses: actions/checkout@v4
+
+      - name: 🔐 Run Vulnerable Package Scan
+        uses: sudeshgutta/secure-scan-action@v1.0.0-beta
+```
+
 ## Features
 
 - **Vulnerability Scanning**: Uses Trivy to detect security vulnerabilities in dependencies
