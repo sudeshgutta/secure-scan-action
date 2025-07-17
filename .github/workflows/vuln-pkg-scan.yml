@@ -14,4 +14,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🔐 Run Vulnerable Package Scan
-        uses: ./
+        uses: sudeshgutta/secure-scan-action@v1.0.0-beta
