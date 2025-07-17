@@ -3,3 +3,6 @@ description: "Scans your repository for security vulnerabilities using Trivy and
 runs:
   using: "docker"
   image: "Dockerfile"
+branding:
+  icon: 'shield'
+  color: 'green'
