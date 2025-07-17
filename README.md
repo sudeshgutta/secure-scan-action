@@ -1,4 +1,4 @@
-A GitHub Action that scans your repository for security vulnerabilities using Trivy and analyzes vulnerable package usage with AST-Grep.
+Secure Scan Action is your intelligent security gatekeeper for GitHub repositories. Powered by [Trivy](https://github.com/aquasecurity/trivy) and [AST-Grep](https://github.com/ast-grep/ast-grep), it not only detects known vulnerabilities in your dependencies but also shows exactly where they’re used in your code. By combining deep vulnerability scanning with smart code analysis, Secure Scan helps you focus on what truly matters — fixing real risks, not false alarms. Shift security left and ship safer code with every commit.
 
 ![Secure Scan Action](https://github.com/sudeshgutta/secure-scan-action/actions/workflows/vuln-pkg-scan.yml/badge.svg)
 
