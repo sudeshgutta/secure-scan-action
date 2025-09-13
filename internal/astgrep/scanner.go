@@ -20,7 +20,7 @@ func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []st
 	vulnPkgs := extractVulnerablePackages(trivyReport)
 	logger.Log.Debug("setting up astgrep scan for trivy identified vulnerable packages", "count", len(vulnPkgs))
 
-	var detectedPackages []string
+	detectedPackages := make([]string, 0)
 	for pkg := range vulnPkgs {
 		result, err := scanWithASTGrep(ctx, pkg)
 		if err != nil {
@@ -36,15 +36,14 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 	ctx, cancel := context.WithTimeout(ctx, ASTGREP_TIMEOUT)
 	defer cancel()
 
-	//TODO: Add support for other languages
-	//TODO: Refactor to avoid redundant rule building
+	// Build AST-Grep rule
 	logger.Log.Debug("building ast-grep rule")
 	ruleJSON, err := rules.BuildRule(pkg)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Log.Debug("configuring ast-grep")
+	// Execute AST-Grep command
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "sg", "scan",
 		"--inline-rules", ruleJSON,
@@ -59,12 +58,14 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 		return nil, err
 	}
 
+	// Parse results
 	logger.Log.Debug("parsing astgrep result json")
 	var matches []ASTGrepMatch
 	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
 		return nil, err
 	}
 
+	// Analyze matches
 	logger.Log.Debug("analysing astgrep matches")
 	result := AnalyzePackageMatches(matches, pkg)
 
@@ -74,6 +75,7 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 
 func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]struct{} {
 	vulnPkgs := make(map[string]struct{})
+
 	for _, result := range trivyReport.Results {
 		for _, vuln := range result.Vulnerabilities {
 			if vuln.PkgName != "" {
@@ -81,5 +83,6 @@ func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]struct{
 			}
 		}
 	}
+
 	return vulnPkgs
 }

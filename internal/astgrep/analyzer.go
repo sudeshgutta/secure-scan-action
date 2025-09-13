@@ -10,6 +10,7 @@ import (
 // AnalyzePackageMatches analyzes AST-Grep output for a specific package
 func AnalyzePackageMatches(matches []ASTGrepMatch, pkg string) *PackageDetectionResult {
 	logger.Log.Debug("analysing astgrep result")
+
 	result := &PackageDetectionResult{
 		PackageName:   pkg,
 		Found:         false,
@@ -24,14 +25,13 @@ func AnalyzePackageMatches(matches []ASTGrepMatch, pkg string) *PackageDetection
 	}
 
 	result.RuleId = matches[0].RuleId
-
 	fileSet := make(map[string]bool)
 	versionSet := make(map[string]bool)
 	var firstMatch *Location
 
+	// Process all matches
 	for _, match := range matches {
-		matchPackage := match.GetPackageName()
-		if !strings.Contains(matchPackage, pkg) {
+		if !isPackageMatch(match, pkg) {
 			continue
 		}
 
@@ -40,19 +40,18 @@ func AnalyzePackageMatches(matches []ASTGrepMatch, pkg string) *PackageDetection
 			loc := match.GetLocation()
 			firstMatch = &loc
 		}
+
 		fileSet[match.File] = true
 		if version := match.GetVersion(); version != "" {
 			versionSet[version] = true
 		}
 	}
 
-	for file := range fileSet {
-		result.UniqueFiles = append(result.UniqueFiles, file)
-	}
-	for version := range versionSet {
-		result.Versions = append(result.Versions, version)
-	}
+	// Convert sets to slices
+	result.UniqueFiles = mapKeysToSlice(fileSet)
+	result.Versions = mapKeysToSlice(versionSet)
 
+	// Set result flags
 	result.Found = result.TotalMatches > 0
 	result.FirstMatch = firstMatch
 	result.HasMultipleFiles = len(result.UniqueFiles) > 1
@@ -60,4 +59,18 @@ func AnalyzePackageMatches(matches []ASTGrepMatch, pkg string) *PackageDetection
 
 	logger.Log.Debug("completed analysis, returning updated result")
 	return result
+}
+
+// isPackageMatch checks if a match is for the specified package
+func isPackageMatch(match ASTGrepMatch, pkg string) bool {
+	return strings.Contains(match.GetPackageName(), pkg)
+}
+
+// mapKeysToSlice converts map keys to a slice
+func mapKeysToSlice(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	return keys
 }

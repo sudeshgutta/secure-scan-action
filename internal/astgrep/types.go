@@ -43,13 +43,21 @@ func (m *ASTGrepMatch) GetVersion() string {
 	parts := strings.Split(packageName, "/")
 
 	for _, part := range parts {
-		if strings.HasPrefix(part, "v") && len(part) > 1 {
-			if part[1] >= '0' && part[1] <= '9' {
-				return part
-			}
+		if isVersionPart(part) {
+			return part
 		}
 	}
 	return ""
+}
+
+// isVersionPart checks if a string part represents a version (e.g., "v4", "v5")
+func isVersionPart(part string) bool {
+	return strings.HasPrefix(part, "v") && len(part) > 1 && isDigit(part[1])
+}
+
+// isDigit checks if a character is a digit
+func isDigit(c byte) bool {
+	return c >= '0' && c <= '9'
 }
 
 // GetLocation returns the file location of this match
