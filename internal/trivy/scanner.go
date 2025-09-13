@@ -20,6 +20,7 @@ const (
 func Scan(ctx context.Context) (*TrivyReport, error) {
 	ctx, cancel := context.WithTimeout(ctx, TRIVY_TIMEOUT)
 	defer cancel()
+
 	var stdout, stderr bytes.Buffer
 	logger.Log.Debug("starting trivy scan...")
 
@@ -33,7 +34,6 @@ func Scan(ctx context.Context) (*TrivyReport, error) {
 	cmd.Stderr = &stderr
 
 	logger.Log.Debug("executing trivy binary...")
-
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
