@@ -13,26 +13,28 @@ func TestExtractVulnerablePackages(t *testing.T) {
 	tests := []struct {
 		name     string
 		report   trivy.TrivyReport
-		expected map[string]struct{}
+		expected map[string][]string
 	}{
 		{
 			name: "empty report",
 			report: trivy.TrivyReport{
 				Results: []*trivy.Result{},
 			},
-			expected: map[string]struct{}{},
+			expected: map[string][]string{},
 		},
 		{
 			name: "report with vulnerabilities",
 			report: trivy.TrivyReport{
 				Results: []*trivy.Result{
 					{
+						Type: "gomod",
 						Vulnerabilities: []*trivy.Vulnerability{
 							{PkgName: "vulnerable-pkg1"},
 							{PkgName: "vulnerable-pkg2"},
 						},
 					},
 					{
+						Type: "gomod",
 						Vulnerabilities: []*trivy.Vulnerability{
 							{PkgName: "vulnerable-pkg3"},
 							{PkgName: "vulnerable-pkg1"}, // duplicate
@@ -40,10 +42,10 @@ func TestExtractVulnerablePackages(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]struct{}{
-				"vulnerable-pkg1": {},
-				"vulnerable-pkg2": {},
-				"vulnerable-pkg3": {},
+			expected: map[string][]string{
+				"vulnerable-pkg1": {"Go"},
+				"vulnerable-pkg2": {"Go"},
+				"vulnerable-pkg3": {"Go"},
 			},
 		},
 		{
@@ -51,17 +53,19 @@ func TestExtractVulnerablePackages(t *testing.T) {
 			report: trivy.TrivyReport{
 				Results: []*trivy.Result{
 					{
+						Type: "gomod",
 						Vulnerabilities: []*trivy.Vulnerability{},
 					},
 				},
 			},
-			expected: map[string]struct{}{},
+			expected: map[string][]string{},
 		},
 		{
 			name: "report with empty package names",
 			report: trivy.TrivyReport{
 				Results: []*trivy.Result{
 					{
+						Type: "gomod",
 						Vulnerabilities: []*trivy.Vulnerability{
 							{PkgName: ""},
 							{PkgName: "valid-pkg"},
@@ -69,8 +73,38 @@ func TestExtractVulnerablePackages(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]struct{}{
-				"valid-pkg": {},
+			expected: map[string][]string{
+				"valid-pkg": {"Go"},
+			},
+		},
+		{
+			name: "report with unsupported ecosystem type",
+			report: trivy.TrivyReport{
+				Results: []*trivy.Result{
+					{
+						Type: "rubygems",
+						Vulnerabilities: []*trivy.Vulnerability{
+							{PkgName: "rack"},
+						},
+					},
+				},
+			},
+			expected: map[string][]string{},
+		},
+		{
+			name: "report with npm ecosystem",
+			report: trivy.TrivyReport{
+				Results: []*trivy.Result{
+					{
+						Type: "npm",
+						Vulnerabilities: []*trivy.Vulnerability{
+							{PkgName: "lodash"},
+						},
+					},
+				},
+			},
+			expected: map[string][]string{
+				"lodash": {"JavaScript", "TypeScript"},
 			},
 		},
 	}
@@ -83,9 +117,28 @@ func TestExtractVulnerablePackages(t *testing.T) {
 				t.Errorf("Expected %d packages, got %d", len(tt.expected), len(result))
 			}
 
-			for pkg := range tt.expected {
-				if _, exists := result[pkg]; !exists {
+			for pkg, expectedLangs := range tt.expected {
+				resultLangs, exists := result[pkg]
+				if !exists {
 					t.Errorf("Expected package '%s' to be in result", pkg)
+					continue
+				}
+
+				if len(resultLangs) != len(expectedLangs) {
+					t.Errorf("For package '%s': expected %d languages, got %d", pkg, len(expectedLangs), len(resultLangs))
+					continue
+				}
+
+				// Check if languages match (order may differ)
+				langMap := make(map[string]bool)
+				for _, lang := range resultLangs {
+					langMap[lang] = true
+				}
+
+				for _, expectedLang := range expectedLangs {
+					if !langMap[expectedLang] {
+						t.Errorf("For package '%s': expected language '%s' not found", pkg, expectedLang)
+					}
 				}
 			}
 
@@ -122,6 +175,7 @@ func TestProcessTrivyReport_WithVulnerabilities(t *testing.T) {
 	report := trivy.TrivyReport{
 		Results: []*trivy.Result{
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package"},
 				},
@@ -150,6 +204,7 @@ func TestProcessTrivyReport_WithCancelledContext(t *testing.T) {
 	report := trivy.TrivyReport{
 		Results: []*trivy.Result{
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package"},
 				},
@@ -181,6 +236,7 @@ func TestProcessTrivyReport_WithTimeout(t *testing.T) {
 	report := trivy.TrivyReport{
 		Results: []*trivy.Result{
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package"},
 				},
@@ -212,7 +268,7 @@ func TestScanWithASTGrep_WithTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	_, err := scanWithASTGrep(ctx, "github.com/test/package")
+	_, err := scanWithASTGrep(ctx, "github.com/test/package", "Go")
 
 	// Should timeout or fail due to missing ast-grep
 	if err == nil {
@@ -227,7 +283,7 @@ func TestScanWithASTGrep_WithCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	_, err := scanWithASTGrep(ctx, "github.com/test/package")
+	_, err := scanWithASTGrep(ctx, "github.com/test/package", "Go")
 
 	// Should fail due to cancelled context
 	if err == nil {
@@ -243,7 +299,7 @@ func TestScanWithASTGrep_WithoutASTGrep(t *testing.T) {
 	ctx := context.Background()
 
 	// This test will fail if ast-grep is not available
-	_, err := scanWithASTGrep(ctx, "github.com/test/package")
+	_, err := scanWithASTGrep(ctx, "github.com/test/package", "Go")
 
 	// Should fail due to missing ast-grep command
 	if err == nil {
@@ -259,6 +315,7 @@ func TestProcessTrivyReport_MultiplePackages(t *testing.T) {
 	report := trivy.TrivyReport{
 		Results: []*trivy.Result{
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package1"},
 					{PkgName: "github.com/test/package2"},
@@ -285,11 +342,13 @@ func TestProcessTrivyReport_DuplicatePackages(t *testing.T) {
 	report := trivy.TrivyReport{
 		Results: []*trivy.Result{
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package"},
 				},
 			},
 			{
+				Type: "gomod",
 				Vulnerabilities: []*trivy.Vulnerability{
 					{PkgName: "github.com/test/package"}, // duplicate
 				},

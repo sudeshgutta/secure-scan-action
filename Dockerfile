@@ -1,5 +1,5 @@
 # Stage 1: Go Build
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -9,7 +9,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-w -s' -o scanner .
 
 # Stage 2: Trivy (use official image)
-FROM aquasec/trivy:0.64.1 AS trivy-stage
+FROM aquasec/trivy:0.69.3 AS trivy-stage
 
 # Stage 3: Final Runtime
 FROM node:lts-bookworm-slim
@@ -20,7 +20,7 @@ RUN apt-get update && \
     ca-certificates \
     git && \
     # Install AST-Grep
-    npm install -g @ast-grep/cli@0.38.7 && \
+    npm install -g @ast-grep/cli@0.39.5 && \
     npm cache clean --force && \
     # Cleanup
     apt-get clean && rm -rf /var/lib/apt/lists/*

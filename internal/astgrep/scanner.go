@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -21,24 +22,28 @@ func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []st
 	logger.Log.Debug("setting up astgrep scan for trivy identified vulnerable packages", "count", len(vulnPkgs))
 
 	detectedPackages := make([]string, 0)
-	for pkg := range vulnPkgs {
-		result, err := scanWithASTGrep(ctx, pkg)
-		if err != nil {
-			logger.Log.Warn("astgrep scan failed or timed out for package", "pkg", pkg, "err", err)
-			continue
+	for pkg, languages := range vulnPkgs {
+		for _, language := range languages {
+			result, err := scanWithASTGrep(ctx, pkg, language)
+			if err != nil {
+				logger.Log.Warn("astgrep scan failed or timed out for package", "pkg", pkg, "language", language, "err", err)
+				continue
+			}
+			if result.IsFound() {
+				detectedPackages = append(detectedPackages, result.GetSummaryString())
+			}
 		}
-		detectedPackages = append(detectedPackages, result.GetSummaryString())
 	}
 	return detectedPackages
 }
 
-func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, error) {
+func scanWithASTGrep(ctx context.Context, pkg, language string) (*PackageDetectionResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, ASTGREP_TIMEOUT)
 	defer cancel()
 
 	// Build AST-Grep rule
 	logger.Log.Debug("building ast-grep rule")
-	ruleJSON, err := rules.BuildRule(pkg)
+	ruleJSON, err := rules.BuildRule(pkg, language)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +60,7 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 
 	logger.Log.Debug("executing ast-grep to find vulnerable packages")
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ast-grep failed: %w: %s", err, stderr.String())
 	}
 
 	// Parse results
@@ -73,16 +78,34 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 	return result, nil
 }
 
-func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]struct{} {
-	vulnPkgs := make(map[string]struct{})
+func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string][]string {
+	pkgLanguages := make(map[string]map[string]struct{})
 
 	for _, result := range trivyReport.Results {
+		languages := rules.LanguagesForEcosystem(result.Type)
+		if languages == nil {
+			continue
+		}
 		for _, vuln := range result.Vulnerabilities {
-			if vuln.PkgName != "" {
-				vulnPkgs[vuln.PkgName] = struct{}{}
+			if vuln.PkgName == "" {
+				continue
+			}
+			if _, exists := pkgLanguages[vuln.PkgName]; !exists {
+				pkgLanguages[vuln.PkgName] = make(map[string]struct{})
+			}
+			for _, lang := range languages {
+				pkgLanguages[vuln.PkgName][lang] = struct{}{}
 			}
 		}
 	}
 
-	return vulnPkgs
+	result := make(map[string][]string, len(pkgLanguages))
+	for pkg, langSet := range pkgLanguages {
+		langs := make([]string, 0, len(langSet))
+		for lang := range langSet {
+			langs = append(langs, lang)
+		}
+		result[pkg] = langs
+	}
+	return result
 }

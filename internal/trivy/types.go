@@ -5,6 +5,7 @@ type TrivyReport struct {
 }
 
 type Result struct {
+	Type            string           `json:"Type"`
 	Vulnerabilities []*Vulnerability `json:"Vulnerabilities,omitempty"`
 }
 

@@ -2,6 +2,7 @@ package rules
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 )
 
@@ -22,7 +23,7 @@ type ASTGrepHasRegex struct {
 	Regex string `json:"regex,omitempty"`
 }
 
-func BuildRule(pkg string) (string, error) {
+func BuildGoRule(pkg string) (string, error) {
 	safeID := strings.NewReplacer("/", "-", ".", "-").Replace(pkg)
 
 	rule := ASTGrepRule{
@@ -31,7 +32,7 @@ func BuildRule(pkg string) (string, error) {
 		Rule: ASTGrepImportSpecRule{
 			Kind: "import_spec",
 			Has: ASTGrepHasRegex{
-				Regex: pkg,
+				Regex: regexp.QuoteMeta(pkg),
 			},
 		},
 	}
@@ -43,3 +44,4 @@ func BuildRule(pkg string) (string, error) {
 
 	return string(data), nil
 }
+

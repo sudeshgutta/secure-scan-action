@@ -2,15 +2,16 @@ package rules
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 )
 
-func TestBuildRule(t *testing.T) {
+func TestBuildGoRule(t *testing.T) {
 	pkg := "github.com/test/package"
-	ruleJSON, err := BuildRule(pkg)
+	ruleJSON, err := BuildGoRule(pkg)
 
 	if err != nil {
-		t.Fatalf("BuildRule() error = %v", err)
+		t.Fatalf("BuildGoRule() error = %v", err)
 	}
 
 	// Parse the JSON to verify structure
@@ -44,12 +45,12 @@ func TestBuildRule(t *testing.T) {
 		t.Fatal("Expected 'has' to be a map")
 	}
 
-	if has["regex"] != pkg {
-		t.Errorf("Expected regex to be '%s', got '%v'", pkg, has["regex"])
+	if has["regex"] != regexp.QuoteMeta(pkg) {
+		t.Errorf("Expected regex to be '%s', got '%v'", regexp.QuoteMeta(pkg), has["regex"])
 	}
 }
 
-func TestBuildRule_WithSpecialCharacters(t *testing.T) {
+func TestBuildGoRule_WithSpecialCharacters(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkg      string
@@ -79,9 +80,9 @@ func TestBuildRule_WithSpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ruleJSON, err := BuildRule(tt.pkg)
+			ruleJSON, err := BuildGoRule(tt.pkg)
 			if err != nil {
-				t.Fatalf("BuildRule() error = %v", err)
+				t.Fatalf("BuildGoRule() error = %v", err)
 			}
 
 			var rule ASTGrepRule
@@ -96,12 +97,12 @@ func TestBuildRule_WithSpecialCharacters(t *testing.T) {
 	}
 }
 
-func TestBuildRule_EmptyPackage(t *testing.T) {
+func TestBuildGoRule_EmptyPackage(t *testing.T) {
 	pkg := ""
-	ruleJSON, err := BuildRule(pkg)
+	ruleJSON, err := BuildGoRule(pkg)
 
 	if err != nil {
-		t.Fatalf("BuildRule() error = %v", err)
+		t.Fatalf("BuildGoRule() error = %v", err)
 	}
 
 	var rule ASTGrepRule
@@ -115,12 +116,12 @@ func TestBuildRule_EmptyPackage(t *testing.T) {
 	}
 }
 
-func TestBuildRule_JSONValidity(t *testing.T) {
+func TestBuildGoRule_JSONValidity(t *testing.T) {
 	pkg := "github.com/test/package"
-	ruleJSON, err := BuildRule(pkg)
+	ruleJSON, err := BuildGoRule(pkg)
 
 	if err != nil {
-		t.Fatalf("BuildRule() error = %v", err)
+		t.Fatalf("BuildGoRule() error = %v", err)
 	}
 
 	// Verify that the JSON is valid
