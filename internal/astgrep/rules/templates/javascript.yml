@@ -1,0 +1,17 @@
+id: detect-vuln-{{.SafeID}}
+language: JavaScript
+severity: error
+message: "Vulnerable npm package '{{.Package}}' is imported"
+note: "This package has known CVEs. Review usage and update or remove it."
+rule:
+  any:
+    - kind: string
+      regex: "{{.Regex}}"
+      inside:
+        kind: import_statement
+    - kind: string
+      regex: "{{.Regex}}"
+      inside:
+        kind: call_expression
+        has:
+          regex: "^require$"

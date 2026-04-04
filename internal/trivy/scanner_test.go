@@ -18,8 +18,8 @@ func TestScanConstants(t *testing.T) {
 		t.Errorf("Expected TRIVY_SCAN_PATH to be '.', got '%s'", TRIVY_SCAN_PATH)
 	}
 
-	if TRIVY_SEVERITY != "HIGH" {
-		t.Errorf("Expected TRIVY_SEVERITY to be 'HIGH', got '%s'", TRIVY_SEVERITY)
+	if TRIVY_SEVERITY != "HIGH,CRITICAL" {
+		t.Errorf("Expected TRIVY_SEVERITY to be 'HIGH,CRITICAL', got '%s'", TRIVY_SEVERITY)
 	}
 
 	if TRIVY_OUTPUT_FORMAT != "json" {
@@ -61,7 +61,7 @@ func TestScanCommandConstruction(t *testing.T) {
 	expectedArgs := []string{
 		"fs",
 		"--exit-code", "0",
-		"--severity", "HIGH",
+		"--severity", "HIGH,CRITICAL",
 		"--format", "json",
 		".",
 	}

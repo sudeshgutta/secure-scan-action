@@ -1,0 +1,9 @@
+id: detect-vuln-{{.SafeID}}
+language: Go
+severity: error
+message: "Vulnerable Go package '{{.Package}}' is imported"
+note: "This package has known CVEs. Review usage and update or remove it."
+rule:
+  kind: import_spec
+  has:
+    regex: "{{.Regex}}"

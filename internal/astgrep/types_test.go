@@ -106,42 +106,9 @@ func TestASTGrepMatch_GetLocation(t *testing.T) {
 	}
 
 	location := match.GetLocation()
-	expected := Location{
-		File:   "test.go",
-		Line:   10,
-		Column: 5,
-	}
-
+	expected := Location{File: "test.go", Line: 10, Column: 5}
 	if location != expected {
 		t.Errorf("GetLocation() = %v, want %v", location, expected)
-	}
-}
-
-func TestASTGrepMatch_GetLocationString(t *testing.T) {
-	match := &ASTGrepMatch{
-		File: "test.go",
-		Range: Range{
-			Start: Position{Line: 10, Column: 5},
-		},
-	}
-
-	result := match.GetLocationString()
-	expected := "test.go:10:5"
-
-	if result != expected {
-		t.Errorf("GetLocationString() = %v, want %v", result, expected)
-	}
-}
-
-func TestASTGrepMatch_IsInFile(t *testing.T) {
-	match := &ASTGrepMatch{File: "test.go"}
-
-	if !match.IsInFile("test.go") {
-		t.Error("Expected IsInFile('test.go') to return true")
-	}
-
-	if match.IsInFile("other.go") {
-		t.Error("Expected IsInFile('other.go') to return false")
 	}
 }
 

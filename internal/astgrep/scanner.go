@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep/rules"
@@ -16,37 +18,54 @@ const (
 	ASTGREP_TIMEOUT time.Duration = 120 * time.Second
 )
 
-func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []string {
-	vulnPkgs := extractVulnerablePackages(trivyReport)
-	logger.Log.Debug("setting up astgrep scan for trivy identified vulnerable packages", "count", len(vulnPkgs))
-
-	detectedPackages := make([]string, 0)
-	for pkg := range vulnPkgs {
-		result, err := scanWithASTGrep(ctx, pkg)
-		if err != nil {
-			logger.Log.Warn("astgrep scan failed or timed out for package", "pkg", pkg, "err", err)
-			continue
-		}
-		detectedPackages = append(detectedPackages, result.GetSummaryString())
-	}
-	return detectedPackages
+// pkgMeta holds aggregated vulnerability metadata for a package.
+type pkgMeta struct {
+	languages []string
+	cveSet    map[string]struct{} // deduplicates CVE IDs
+	cveIDs    []string            // ordered list built from cveSet on demand
+	severity  string              // worst severity seen
 }
 
-func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, error) {
+func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []Finding {
+	pkgs := extractVulnerablePackages(trivyReport)
+	logger.Log.Debug("setting up astgrep scan for trivy identified vulnerable packages", "count", len(pkgs))
+
+	var findings []Finding
+	for pkg, meta := range pkgs {
+		for _, language := range meta.languages {
+			result, err := scanWithASTGrep(ctx, pkg, language)
+			if err != nil {
+				logger.Log.Warn("astgrep scan failed or timed out for package", "pkg", pkg, "language", language, "err", err)
+				continue
+			}
+			if result.IsFound() {
+				findings = append(findings, Finding{
+					Package:           pkg,
+					Language:          language,
+					CVEIDs:            meta.cveIDs,
+					Severity:          meta.severity,
+					DetectionResult:   result,
+					ReachabilityScore: computeReachability(result.UniqueFiles),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+func scanWithASTGrep(ctx context.Context, pkg, language string) (*PackageDetectionResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, ASTGREP_TIMEOUT)
 	defer cancel()
 
-	// Build AST-Grep rule
 	logger.Log.Debug("building ast-grep rule")
-	ruleJSON, err := rules.BuildRule(pkg)
+	ruleYAML, err := rules.BuildRule(pkg, language)
 	if err != nil {
 		return nil, err
 	}
 
-	// Execute AST-Grep command
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "sg", "scan",
-		"--inline-rules", ruleJSON,
+		"--inline-rules", ruleYAML,
 		"--json",
 		".",
 	)
@@ -55,17 +74,15 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 
 	logger.Log.Debug("executing ast-grep to find vulnerable packages")
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ast-grep failed: %w: %s", err, stderr.String())
 	}
 
-	// Parse results
 	logger.Log.Debug("parsing astgrep result json")
 	var matches []ASTGrepMatch
 	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
 		return nil, err
 	}
 
-	// Analyze matches
 	logger.Log.Debug("analysing astgrep matches")
 	result := AnalyzePackageMatches(matches, pkg)
 
@@ -73,16 +90,64 @@ func scanWithASTGrep(ctx context.Context, pkg string) (*PackageDetectionResult, 
 	return result, nil
 }
 
-func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]struct{} {
-	vulnPkgs := make(map[string]struct{})
+// severityRank returns a numeric rank for severity comparison (higher = worse).
+func severityRank(s string) int {
+	switch strings.ToUpper(s) {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]*pkgMeta {
+	pkgs := make(map[string]*pkgMeta)
 
 	for _, result := range trivyReport.Results {
+		languages := rules.LanguagesForEcosystem(result.Type)
+		if languages == nil {
+			continue
+		}
 		for _, vuln := range result.Vulnerabilities {
-			if vuln.PkgName != "" {
-				vulnPkgs[vuln.PkgName] = struct{}{}
+			if vuln.PkgName == "" {
+				continue
+			}
+			meta, exists := pkgs[vuln.PkgName]
+			if !exists {
+				meta = &pkgMeta{
+					languages: languages,
+					cveSet:    make(map[string]struct{}),
+				}
+				pkgs[vuln.PkgName] = meta
+			} else {
+				// merge any new languages not already present
+				existingLangSet := make(map[string]struct{}, len(meta.languages))
+				for _, l := range meta.languages {
+					existingLangSet[l] = struct{}{}
+				}
+				for _, l := range languages {
+					if _, dup := existingLangSet[l]; !dup {
+						meta.languages = append(meta.languages, l)
+					}
+				}
+			}
+			if vuln.VulnerabilityID != "" {
+				if _, dup := meta.cveSet[vuln.VulnerabilityID]; !dup {
+					meta.cveSet[vuln.VulnerabilityID] = struct{}{}
+					meta.cveIDs = append(meta.cveIDs, vuln.VulnerabilityID)
+				}
+			}
+			if severityRank(vuln.Severity) > severityRank(meta.severity) {
+				meta.severity = vuln.Severity
 			}
 		}
 	}
 
-	return vulnPkgs
+	return pkgs
 }

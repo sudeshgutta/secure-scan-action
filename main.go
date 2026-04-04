@@ -6,6 +6,8 @@ import (
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep"
 	"github.com/sudeshgutta/secure-scan-action/internal/logger"
+	"github.com/sudeshgutta/secure-scan-action/internal/report"
+	"github.com/sudeshgutta/secure-scan-action/internal/sarif"
 	"github.com/sudeshgutta/secure-scan-action/internal/trivy"
 )
 
@@ -15,7 +17,6 @@ func main() {
 
 	ctx := context.Background()
 
-	// Run Trivy scan
 	trivyReport, err := trivy.Scan(ctx)
 	if err != nil {
 		logger.Log.Error("Trivy scan failed", "error", err)
@@ -23,13 +24,21 @@ func main() {
 	}
 	logger.Log.Info("Trivy analysis complete")
 
-	// Process findings with AST-Grep
 	findings := astgrep.ProcessTrivyReport(ctx, *trivyReport)
 	logger.Log.Info("ASTGrep analysis complete")
 
-	// Report results
+	report.Print(findings, os.Stdout)
+
+	if sarifPath := os.Getenv("INPUT_SARIF_OUTPUT"); sarifPath != "" {
+		if err := sarif.Write(findings, sarifPath); err != nil {
+			logger.Log.Warn("Failed to write SARIF output", "path", sarifPath, "error", err)
+		} else {
+			logger.Log.Info("SARIF report written", "path", sarifPath)
+		}
+	}
+
 	if len(findings) > 0 {
-		logger.Log.Info("🚨 Vulnerable package(s) usage found", "count", len(findings), "findings", findings)
+		logger.Log.Info("🚨 Vulnerable package(s) usage found", "count", len(findings))
 		os.Exit(2)
 	}
 
