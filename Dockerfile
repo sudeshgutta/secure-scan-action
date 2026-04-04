@@ -38,6 +38,8 @@ RUN chmod +x /usr/local/bin/scanner /usr/local/bin/trivy
 RUN mkdir -p /tmp/trivy
 
 # Set environment variables for cache directories
+# Suppress Node.js deprecation warnings from ast-grep CLI internals
+ENV NODE_NO_WARNINGS=1
 ENV TRIVY_CACHE_DIR=/tmp/trivy
 ENV XDG_CACHE_HOME=/tmp
 

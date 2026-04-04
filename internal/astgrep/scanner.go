@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -74,7 +75,12 @@ func scanWithASTGrep(ctx context.Context, pkg, language string) (*PackageDetecti
 
 	logger.Log.Debug("executing ast-grep to find vulnerable packages")
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ast-grep failed: %w: %s", err, stderr.String())
+		// sg scan exits 1 when matches are found — that is a valid result, not an error.
+		// Any exit code > 1 (or a non-ExitError) is a genuine failure.
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() > 1 {
+			return nil, fmt.Errorf("ast-grep failed: %w: %s", err, stderr.String())
+		}
 	}
 
 	logger.Log.Debug("parsing astgrep result json")
