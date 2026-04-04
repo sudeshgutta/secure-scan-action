@@ -1,151 +1,121 @@
 package rules
 
 import (
-	"encoding/json"
-	"regexp"
+	"strings"
 	"testing"
 )
 
 func TestBuildGoRule(t *testing.T) {
 	pkg := "github.com/test/package"
-	ruleJSON, err := BuildGoRule(pkg)
-
+	ruleYAML, err := BuildGoRule(pkg)
 	if err != nil {
 		t.Fatalf("BuildGoRule() error = %v", err)
 	}
 
-	// Parse the JSON to verify structure
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Failed to unmarshal rule JSON: %v", err)
+	checks := []struct {
+		desc string
+		want string
+	}{
+		{"contains expected id", "id: detect-vuln-github-com-test-package"},
+		{"contains Go language", "language: Go"},
+		{"contains error severity", "severity: error"},
+		{"contains message", "message:"},
+		{"contains import_spec kind", "kind: import_spec"},
+		{"contains escaped regex", `regex: "github\\.com/test/package"`},
 	}
-
-	// Verify rule structure
-	expectedID := "detect-vuln-github-com-test-package"
-	if rule.ID != expectedID {
-		t.Errorf("Expected ID to be '%s', got '%s'", expectedID, rule.ID)
-	}
-
-	if rule.Language != "go" {
-		t.Errorf("Expected Language to be 'go', got '%s'", rule.Language)
-	}
-
-	// Verify rule content
-	importSpecRule, ok := rule.Rule.(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected rule to be a map")
-	}
-
-	if importSpecRule["kind"] != "import_spec" {
-		t.Errorf("Expected kind to be 'import_spec', got '%v'", importSpecRule["kind"])
-	}
-
-	has, ok := importSpecRule["has"].(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected 'has' to be a map")
-	}
-
-	if has["regex"] != regexp.QuoteMeta(pkg) {
-		t.Errorf("Expected regex to be '%s', got '%v'", regexp.QuoteMeta(pkg), has["regex"])
+	for _, c := range checks {
+		t.Run(c.desc, func(t *testing.T) {
+			if !strings.Contains(ruleYAML, c.want) {
+				t.Errorf("expected YAML to contain %q\ngot:\n%s", c.want, ruleYAML)
+			}
+		})
 	}
 }
 
 func TestBuildGoRule_WithSpecialCharacters(t *testing.T) {
 	tests := []struct {
-		name     string
-		pkg      string
-		expected string
+		name        string
+		pkg         string
+		expectedID  string
 	}{
-		{
-			name:     "package with slashes",
-			pkg:      "github.com/test/package",
-			expected: "detect-vuln-github-com-test-package",
-		},
-		{
-			name:     "package with dots",
-			pkg:      "github.com/test.package",
-			expected: "detect-vuln-github-com-test-package",
-		},
-		{
-			name:     "package with both slashes and dots",
-			pkg:      "github.com/test.package/v1",
-			expected: "detect-vuln-github-com-test-package-v1",
-		},
-		{
-			name:     "package with multiple dots",
-			pkg:      "github.com/test.package.subpackage",
-			expected: "detect-vuln-github-com-test-package-subpackage",
-		},
+		{"package with slashes", "github.com/test/package", "detect-vuln-github-com-test-package"},
+		{"package with dots", "github.com/test.package", "detect-vuln-github-com-test-package"},
+		{"package with both", "github.com/test.package/v1", "detect-vuln-github-com-test-package-v1"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ruleJSON, err := BuildGoRule(tt.pkg)
+			ruleYAML, err := BuildGoRule(tt.pkg)
 			if err != nil {
 				t.Fatalf("BuildGoRule() error = %v", err)
 			}
-
-			var rule ASTGrepRule
-			if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-				t.Fatalf("Failed to unmarshal rule JSON: %v", err)
-			}
-
-			if rule.ID != tt.expected {
-				t.Errorf("Expected ID to be '%s', got '%s'", tt.expected, rule.ID)
+			if !strings.Contains(ruleYAML, "id: "+tt.expectedID) {
+				t.Errorf("expected id %q in:\n%s", tt.expectedID, ruleYAML)
 			}
 		})
 	}
 }
 
 func TestBuildGoRule_EmptyPackage(t *testing.T) {
-	pkg := ""
-	ruleJSON, err := BuildGoRule(pkg)
-
+	ruleYAML, err := BuildGoRule("")
 	if err != nil {
 		t.Fatalf("BuildGoRule() error = %v", err)
 	}
-
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Failed to unmarshal rule JSON: %v", err)
-	}
-
-	expectedID := "detect-vuln-"
-	if rule.ID != expectedID {
-		t.Errorf("Expected ID to be '%s', got '%s'", expectedID, rule.ID)
+	if !strings.Contains(ruleYAML, "id: detect-vuln-") {
+		t.Errorf("expected id prefix in:\n%s", ruleYAML)
 	}
 }
 
-func TestBuildGoRule_JSONValidity(t *testing.T) {
-	pkg := "github.com/test/package"
-	ruleJSON, err := BuildGoRule(pkg)
+func TestBuildGoRule_YAMLInjection(t *testing.T) {
+	tests := []struct {
+		name        string
+		pkg         string
+		mustContain string
+		mustNotContain string
+	}{
+		{
+			name:           "double-quote in package name is escaped",
+			pkg:            `evil"pkg`,
+			mustContain:    `evil\"pkg`,
+			mustNotContain: `evil"pkg`,
+		},
+		{
+			name:        "newline in package name is stripped",
+			pkg:         "evil\npkg",
+			mustContain: "id: detect-vuln-evil-pkg",
+		},
+		{
+			name:        "non-id chars in package name are sanitized in id field",
+			pkg:         "pkg!name#here",
+			mustContain: "id: detect-vuln-pkg-name-here",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ruleYAML, err := BuildGoRule(tt.pkg)
+			if err != nil {
+				t.Fatalf("BuildGoRule() error = %v", err)
+			}
+			if tt.mustContain != "" && !strings.Contains(ruleYAML, tt.mustContain) {
+				t.Errorf("expected YAML to contain %q\ngot:\n%s", tt.mustContain, ruleYAML)
+			}
+			if tt.mustNotContain != "" && strings.Contains(ruleYAML, tt.mustNotContain) {
+				t.Errorf("expected YAML to NOT contain %q\ngot:\n%s", tt.mustNotContain, ruleYAML)
+			}
+		})
+	}
+}
 
+func TestBuildGoRule_YAMLValidity(t *testing.T) {
+	pkg := "github.com/test/package"
+	ruleYAML, err := BuildGoRule(pkg)
 	if err != nil {
 		t.Fatalf("BuildGoRule() error = %v", err)
 	}
-
-	// Verify that the JSON is valid
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Generated JSON is invalid: %v", err)
-	}
-
-	// Verify that we can marshal it back to the same JSON
-	expectedJSON, err := json.Marshal(rule)
-	if err != nil {
-		t.Fatalf("Failed to marshal rule back to JSON: %v", err)
-	}
-
-	// The JSON should be equivalent (order might differ, but content should be same)
-	var originalRule, expectedRule ASTGrepRule
-	json.Unmarshal([]byte(ruleJSON), &originalRule)
-	json.Unmarshal(expectedJSON, &expectedRule)
-
-	if originalRule.ID != expectedRule.ID {
-		t.Error("Rule ID mismatch after round-trip JSON conversion")
-	}
-
-	if originalRule.Language != expectedRule.Language {
-		t.Error("Rule Language mismatch after round-trip JSON conversion")
+	// Verify all required YAML keys are present
+	for _, key := range []string{"id:", "language:", "severity:", "message:", "rule:"} {
+		if !strings.Contains(ruleYAML, key) {
+			t.Errorf("missing required YAML key %q in:\n%s", key, ruleYAML)
+		}
 	}
 }

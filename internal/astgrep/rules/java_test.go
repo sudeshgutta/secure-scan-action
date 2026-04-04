@@ -1,174 +1,106 @@
 package rules
 
 import (
-	"encoding/json"
+	"strings"
 	"testing"
 )
 
 func TestBuildJavaRule(t *testing.T) {
 	pkg := "org.apache.logging.log4j:log4j-core"
-	ruleJSON, err := BuildJavaRule(pkg)
-
+	ruleYAML, err := BuildJavaRule(pkg)
 	if err != nil {
 		t.Fatalf("BuildJavaRule() error = %v", err)
 	}
 
-	// Parse the JSON to verify structure
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Failed to unmarshal rule JSON: %v", err)
+	checks := []struct {
+		desc string
+		want string
+	}{
+		{"contains expected id", "id: detect-vuln-org-apache-logging-log4j-log4j-core"},
+		{"contains Java language", "language: Java"},
+		{"contains error severity", "severity: error"},
+		{"contains message", "message:"},
+		{"contains import_declaration", "import_declaration"},
+		{"contains escaped regex", `regex: "org\\.apache\\.logging\\.log4j"`},
 	}
-
-	// Verify rule structure
-	expectedID := "detect-vuln-org-apache-logging-log4j-log4j-core"
-	if rule.ID != expectedID {
-		t.Errorf("Expected ID to be '%s', got '%s'", expectedID, rule.ID)
-	}
-
-	if rule.Language != "Java" {
-		t.Errorf("Expected Language to be 'Java', got '%s'", rule.Language)
-	}
-
-	// Verify rule content
-	importSpecRule, ok := rule.Rule.(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected rule to be a map")
-	}
-
-	if importSpecRule["kind"] != "import_declaration" {
-		t.Errorf("Expected kind to be 'import_declaration', got '%v'", importSpecRule["kind"])
-	}
-
-	has, ok := importSpecRule["has"].(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected 'has' to be a map")
-	}
-
-	expectedRegex := "org\\.apache\\.logging\\.log4j"
-	if has["regex"] != expectedRegex {
-		t.Errorf("Expected regex to be '%s', got '%v'", expectedRegex, has["regex"])
+	for _, c := range checks {
+		t.Run(c.desc, func(t *testing.T) {
+			if !strings.Contains(ruleYAML, c.want) {
+				t.Errorf("expected YAML to contain %q\ngot:\n%s", c.want, ruleYAML)
+			}
+		})
 	}
 }
 
 func TestBuildJavaRule_MavenFormat(t *testing.T) {
 	tests := []struct {
-		name     string
-		pkg      string
-		expectedID string
-		expectedRegex string
+		name           string
+		pkg            string
+		expectedID     string
+		expectedRegex  string
 	}{
 		{
-			name:     "Maven package with groupId and artifactId",
-			pkg:      "org.apache.logging.log4j:log4j-core",
-			expectedID: "detect-vuln-org-apache-logging-log4j-log4j-core",
-			expectedRegex: "org\\.apache\\.logging\\.log4j",
+			name:          "Maven package with groupId and artifactId",
+			pkg:           "org.apache.logging.log4j:log4j-core",
+			expectedID:    "detect-vuln-org-apache-logging-log4j-log4j-core",
+			expectedRegex: `org\\.apache\\.logging\\.log4j`,
 		},
 		{
-			name:     "Google Guava Maven package",
-			pkg:      "com.google.guava:guava",
-			expectedID: "detect-vuln-com-google-guava-guava",
-			expectedRegex: "com\\.google\\.guava",
+			name:          "Google Guava Maven package",
+			pkg:           "com.google.guava:guava",
+			expectedID:    "detect-vuln-com-google-guava-guava",
+			expectedRegex: `com\\.google\\.guava`,
 		},
 		{
-			name:     "Spring Framework package",
-			pkg:      "org.springframework:spring-core",
-			expectedID: "detect-vuln-org-springframework-spring-core",
-			expectedRegex: "org\\.springframework",
+			name:          "Spring Framework package",
+			pkg:           "org.springframework:spring-core",
+			expectedID:    "detect-vuln-org-springframework-spring-core",
+			expectedRegex: `org\\.springframework`,
 		},
 		{
-			name:     "Plain package without colon",
-			pkg:      "com.example",
-			expectedID: "detect-vuln-com-example",
-			expectedRegex: "com\\.example",
+			name:          "Plain package without colon",
+			pkg:           "com.example",
+			expectedID:    "detect-vuln-com-example",
+			expectedRegex: `com\\.example`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ruleJSON, err := BuildJavaRule(tt.pkg)
+			ruleYAML, err := BuildJavaRule(tt.pkg)
 			if err != nil {
 				t.Fatalf("BuildJavaRule() error = %v", err)
 			}
-
-			var rule ASTGrepRule
-			if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-				t.Fatalf("Failed to unmarshal rule JSON: %v", err)
+			if !strings.Contains(ruleYAML, "id: "+tt.expectedID) {
+				t.Errorf("expected id %q in:\n%s", tt.expectedID, ruleYAML)
 			}
-
-			if rule.ID != tt.expectedID {
-				t.Errorf("Expected ID to be '%s', got '%s'", tt.expectedID, rule.ID)
-			}
-
-			importSpecRule, ok := rule.Rule.(map[string]interface{})
-			if !ok {
-				t.Fatal("Expected rule to be a map")
-			}
-
-			has, ok := importSpecRule["has"].(map[string]interface{})
-			if !ok {
-				t.Fatal("Expected 'has' to be a map")
-			}
-
-			if has["regex"] != tt.expectedRegex {
-				t.Errorf("Expected regex to be '%s', got '%v'", tt.expectedRegex, has["regex"])
+			if !strings.Contains(ruleYAML, "regex: \""+tt.expectedRegex+"\"") {
+				t.Errorf("expected regex %q in:\n%s", tt.expectedRegex, ruleYAML)
 			}
 		})
 	}
 }
 
 func TestBuildJavaRule_EmptyPackage(t *testing.T) {
-	pkg := ""
-	ruleJSON, err := BuildJavaRule(pkg)
-
+	ruleYAML, err := BuildJavaRule("")
 	if err != nil {
 		t.Fatalf("BuildJavaRule() error = %v", err)
 	}
-
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Failed to unmarshal rule JSON: %v", err)
-	}
-
-	expectedID := "detect-vuln-"
-	if rule.ID != expectedID {
-		t.Errorf("Expected ID to be '%s', got '%s'", expectedID, rule.ID)
-	}
-
-	if rule.Language != "Java" {
-		t.Errorf("Expected Language to be 'Java', got '%s'", rule.Language)
+	if !strings.Contains(ruleYAML, "id: detect-vuln-") {
+		t.Errorf("expected id prefix in:\n%s", ruleYAML)
 	}
 }
 
-func TestBuildJavaRule_JSONValidity(t *testing.T) {
+func TestBuildJavaRule_YAMLValidity(t *testing.T) {
 	pkg := "org.apache.logging.log4j:log4j-core"
-	ruleJSON, err := BuildJavaRule(pkg)
-
+	ruleYAML, err := BuildJavaRule(pkg)
 	if err != nil {
 		t.Fatalf("BuildJavaRule() error = %v", err)
 	}
-
-	// Verify that the JSON is valid
-	var rule ASTGrepRule
-	if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-		t.Fatalf("Generated JSON is invalid: %v", err)
-	}
-
-	// Verify that we can marshal it back to the same JSON
-	expectedJSON, err := json.Marshal(rule)
-	if err != nil {
-		t.Fatalf("Failed to marshal rule back to JSON: %v", err)
-	}
-
-	// The JSON should be equivalent (order might differ, but content should be same)
-	var originalRule, expectedRule ASTGrepRule
-	json.Unmarshal([]byte(ruleJSON), &originalRule)
-	json.Unmarshal(expectedJSON, &expectedRule)
-
-	if originalRule.ID != expectedRule.ID {
-		t.Error("Rule ID mismatch after round-trip JSON conversion")
-	}
-
-	if originalRule.Language != expectedRule.Language {
-		t.Error("Rule Language mismatch after round-trip JSON conversion")
+	// Verify all required YAML keys are present
+	for _, key := range []string{"id:", "language:", "severity:", "message:", "rule:"} {
+		if !strings.Contains(ruleYAML, key) {
+			t.Errorf("missing required YAML key %q in:\n%s", key, ruleYAML)
+		}
 	}
 }

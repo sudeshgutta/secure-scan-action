@@ -1,0 +1,9 @@
+id: detect-vuln-{{.SafeID}}
+language: Java
+severity: error
+message: "Vulnerable Maven package '{{.Package}}' is imported"
+note: "Matches on groupId namespace prefix. Review the import and update or remove the dependency."
+rule:
+  kind: import_declaration
+  has:
+    regex: "{{.GroupIDRegex}}"

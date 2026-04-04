@@ -1,7 +1,7 @@
 package rules
 
 import (
-	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +18,7 @@ func TestBuildRule(t *testing.T) {
 			pkg:         "github.com/foo/bar",
 			language:    "Go",
 			expectError: false,
-			expectLang:  "go",
+			expectLang:  "Go",
 		},
 		{
 			name:        "JavaScript language",
@@ -59,7 +59,7 @@ func TestBuildRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ruleJSON, err := BuildRule(tt.pkg, tt.language)
+			ruleYAML, err := BuildRule(tt.pkg, tt.language)
 
 			if (err != nil) != tt.expectError {
 				t.Errorf("BuildRule() error = %v, expectError = %v", err, tt.expectError)
@@ -69,14 +69,10 @@ func TestBuildRule(t *testing.T) {
 				return
 			}
 
-			// Parse the JSON to verify structure
-			var rule ASTGrepRule
-			if err := json.Unmarshal([]byte(ruleJSON), &rule); err != nil {
-				t.Fatalf("Failed to unmarshal rule JSON: %v", err)
-			}
-
-			if rule.Language != tt.expectLang {
-				t.Errorf("Expected Language to be '%s', got '%s'", tt.expectLang, rule.Language)
+			// Verify language is in the YAML
+			expectedLangLine := "language: " + tt.expectLang
+			if !strings.Contains(ruleYAML, expectedLangLine) {
+				t.Errorf("Expected YAML to contain %q\ngot:\n%s", expectedLangLine, ruleYAML)
 			}
 		})
 	}

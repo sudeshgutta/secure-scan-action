@@ -38,7 +38,7 @@ main.go
   ├── trivy.Scan(ctx)                  # Runs trivy CLI → TrivyReport
   └── astgrep.ProcessTrivyReport(ctx, report)
         ├── extractVulnerablePackages() # Deduplicates PkgNames into a map
-        ├── rules.BuildRule(pkg)        # Generates inline AST-Grep JSON rules for Go import_spec nodes
+        ├── rules.BuildRule(pkg, language) # Renders YAML from embedded templates
         ├── scanWithASTGrep(ctx, pkg)   # Executes `sg scan --inline-rules ...`
         └── AnalyzePackageMatches()     # Parses JSON output → PackageDetectionResult
 ```
@@ -46,7 +46,7 @@ main.go
 `internal/` package layout:
 - `trivy/` — Trivy CLI wrapper and report types (`TrivyReport`, `Result`, `Vulnerability`)
 - `astgrep/` — AST-Grep orchestration, output analysis, and result types (`ASTGrepMatch`, `PackageDetectionResult`)
-- `astgrep/rules/` — Rule generation per language; currently only `go.go` (targets `import_spec` nodes)
+- `astgrep/rules/` — Rule generation per language; renders YAML templates per language
 - `logger/` — Singleton `log/slog` logger with JSON output; debug level enabled via `DEBUG=1` env var
 
 ## Key Conventions
@@ -75,7 +75,15 @@ Fatal errors (e.g., Trivy failing entirely) call `os.Exit(1)`.
 - Integration tests use very short timeouts (e.g., `1*time.Millisecond`) to avoid hanging when tools aren't available in CI
 
 ### Adding Language Support
-To add scanning support for a new language (JS, Python, etc.), add a new file under `internal/astgrep/rules/` that implements a `BuildRule(packageName string) string` function returning an inline AST-Grep JSON rule targeting that language's import syntax.
+To add scanning support for a new language (JS, Python, etc.), add a new file under `internal/astgrep/rules/` that implements a `BuildXxxRule(packageName string) (string, error)` function and wire it into `dispatcher.go`.
+
+### Rule Templates (YAML)
+AST-Grep rules are defined as Go `text/template`-based YAML files in `internal/astgrep/rules/templates/`:
+- `go.yml`, `javascript.yml`, `typescript.yml`, `python.yml`, `java.yml`
+- Templates are embedded in the binary via `//go:embed` — no file-system dependency at runtime
+- Template variables: `{{.SafeID}}`, `{{.Package}}`, `{{.Regex}}`, `{{.GroupIDRegex}}` (Java only)
+- Each template includes `severity: error`, `message`, and `note` fields per ast-grep best practices
+- To add a new language: create a template file in `templates/`, add a `BuildXxxRule` function, and wire it into `dispatcher.go`
 
 ## Docker Build
 

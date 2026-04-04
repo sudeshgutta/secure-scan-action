@@ -1,0 +1,13 @@
+id: detect-vuln-{{.SafeID}}
+language: Python
+severity: error
+message: "Vulnerable pip package '{{.Package}}' is imported"
+note: "PyPI package names may differ from import names (e.g. Pillow→PIL). Best-effort match."
+rule:
+  any:
+    - kind: import_statement
+      has:
+        regex: "{{.Regex}}"
+    - kind: import_from_statement
+      has:
+        regex: "{{.Regex}}"
