@@ -17,7 +17,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🔐 Run Vulnerable Package Scan
-        uses: sudeshgutta/secure-scan-action@v1.0.0
+        uses: ./
+        continue-on-error: true   # exit code 2 (findings) must not skip SARIF upload
         with:
           severity: "HIGH,CRITICAL"
           sarif-output: "results.sarif"
