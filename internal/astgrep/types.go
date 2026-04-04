@@ -95,9 +95,9 @@ type Range struct {
 
 // Location represents a simple file location.
 type Location struct {
-	File   string
-	Line   int
-	Column int
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Column int    `json:"column"`
 }
 
 func (m *ASTGrepMatch) GetPackageName() string {

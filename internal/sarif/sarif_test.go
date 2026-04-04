@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep"
@@ -53,9 +52,14 @@ func TestWrite_SingleFinding(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	data, _ := os.ReadFile(path)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
 	var log sarifLog
-	json.Unmarshal(data, &log)
+	if err := json.Unmarshal(data, &log); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
 
 	run := log.Runs[0]
 	if len(run.Tool.Driver.Rules) != 1 {
@@ -107,12 +111,26 @@ func TestWrite_MultipleCVEs(t *testing.T) {
 	}}
 
 	path := filepath.Join(t.TempDir(), "results.sarif")
-	Write(findings, path)
-	data, _ := os.ReadFile(path)
-
+	if err := Write(findings, path); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var log sarifLog
+	if err := json.Unmarshal(data, &log); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(log.Runs) != 1 {
+		t.Fatalf("want 1 run, got %d", len(log.Runs))
+	}
 	// 2 CVEs × 2 files = 4 results
-	if !strings.Contains(string(data), "CVE-2021-0001") || !strings.Contains(string(data), "CVE-2021-0002") {
-		t.Error("expected both CVE IDs in SARIF output")
+	if len(log.Runs[0].Results) != 4 {
+		t.Fatalf("want 4 results (2 CVEs × 2 files), got %d", len(log.Runs[0].Results))
+	}
+	if len(log.Runs[0].Tool.Driver.Rules) != 2 {
+		t.Errorf("want 2 rules, got %d", len(log.Runs[0].Tool.Driver.Rules))
 	}
 }
 

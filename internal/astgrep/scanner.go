@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep/rules"
@@ -20,8 +21,9 @@ const (
 // pkgMeta holds aggregated vulnerability metadata for a package.
 type pkgMeta struct {
 	languages []string
-	cveIDs    []string
-	severity  string // worst severity seen
+	cveSet    map[string]struct{} // deduplicates CVE IDs
+	cveIDs    []string            // ordered list built from cveSet on demand
+	severity  string              // worst severity seen
 }
 
 func ProcessTrivyReport(ctx context.Context, trivyReport trivy.TrivyReport) []Finding {
@@ -90,7 +92,7 @@ func scanWithASTGrep(ctx context.Context, pkg, language string) (*PackageDetecti
 
 // severityRank returns a numeric rank for severity comparison (higher = worse).
 func severityRank(s string) int {
-	switch s {
+	switch strings.ToUpper(s) {
 	case "CRITICAL":
 		return 4
 	case "HIGH":
@@ -118,7 +120,10 @@ func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]*pkgMet
 			}
 			meta, exists := pkgs[vuln.PkgName]
 			if !exists {
-				meta = &pkgMeta{languages: languages}
+				meta = &pkgMeta{
+					languages: languages,
+					cveSet:    make(map[string]struct{}),
+				}
 				pkgs[vuln.PkgName] = meta
 			} else {
 				// merge any new languages not already present
@@ -133,7 +138,10 @@ func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]*pkgMet
 				}
 			}
 			if vuln.VulnerabilityID != "" {
-				meta.cveIDs = append(meta.cveIDs, vuln.VulnerabilityID)
+				if _, dup := meta.cveSet[vuln.VulnerabilityID]; !dup {
+					meta.cveSet[vuln.VulnerabilityID] = struct{}{}
+					meta.cveIDs = append(meta.cveIDs, vuln.VulnerabilityID)
+				}
 			}
 			if severityRank(vuln.Severity) > severityRank(meta.severity) {
 				meta.severity = vuln.Severity

@@ -160,19 +160,17 @@ AST-Grep rules are defined as Go `text/template`-based YAML files in `internal/a
 ## Docker Build
 
 Three-stage Dockerfile:
-1. `golang:1.24-alpine` — compiles static binary with `CGO_ENABLED=0`, strips debug symbols (`-ldflags='-w -s'`)
-2. `aquasec/trivy:0.64.1` — source for the trivy binary
-3. `node:lts-bookworm-slim` — runtime; installs `ast-grep` via npm, adds non-root `scanner` user, copies binaries from stages 1 & 2
+1. Go builder stage — compiles a static binary with `CGO_ENABLED=0` and stripped debug symbols (`-ldflags='-w -s'`)
+2. Trivy stage — provides the `trivy` binary copied into the final image
+3. Node runtime stage — installs `ast-grep` via npm, adds the non-root `scanner` user, copies binaries from the builder stages
+
+Do not hard-code base-image or tool versions in this document — use `Dockerfile` as the source of truth for currently pinned versions.
 
 The action uses no Go module dependencies beyond the standard library.
 
 ## GitHub Action
 
-Defined in `action.yml` — runs as a Docker action. Inputs:
-- `severity` (default `HIGH,CRITICAL`) — comma-separated Trivy severity levels
-- `sarif-output` (default `results.sarif`) — path for the SARIF 2.1.0 output file
-
-The workflow in `.github/workflows/vuln-pkg-scan.yml` shows canonical usage.
+Defined in `action.yml` — runs as a Docker action. Treat `action.yml` as the source of truth for current inputs, defaults, and env wiring. The workflow in `.github/workflows/vuln-pkg-scan.yml` shows canonical usage.
 
 
 ```bash

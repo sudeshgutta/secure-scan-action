@@ -49,6 +49,6 @@ func BuildRule(pkg, language string) (string, error) {
 		data.GroupIDRegex = regexp.QuoteMeta(groupID)
 		return renderTemplate("java", data)
 	default:
-		return "", fmt.Errorf("unsupported language: %s", language)
+		return "", fmt.Errorf("unsupported language: %q", language)
 	}
 }
