@@ -1,6 +1,7 @@
 package sarif
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -30,6 +31,13 @@ func TestWrite_EmptyFindings(t *testing.T) {
 	}
 	if len(log.Runs[0].Results) != 0 {
 		t.Errorf("want 0 results, got %d", len(log.Runs[0].Results))
+	}
+	// Ensure results and rules marshal as [] not null (SARIF schema requires arrays)
+	if !bytes.Contains(data, []byte(`"results": []`)) {
+		t.Errorf("expected results to be JSON array [], got null or missing")
+	}
+	if !bytes.Contains(data, []byte(`"rules": []`)) {
+		t.Errorf("expected rules to be JSON array [], got null or missing")
 	}
 }
 

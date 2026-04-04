@@ -124,7 +124,7 @@ func Write(findings []astgrep.Finding, path string) error {
 
 func buildRulesAndResults(findings []astgrep.Finding) ([]sarifRule, []sarifResult) {
 	ruleSet := make(map[string]sarifRule)
-	var results []sarifResult
+	results := make([]sarifResult, 0)
 
 	for _, f := range findings {
 		for _, cve := range f.CVEIDs {

@@ -8,10 +8,23 @@ jobs:
   vuln-pkg-scan:
     name: Vulnerable Package Scan Job
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload SARIF to GitHub Security tab
+      contents: read
 
     steps:
       - name: ⬇️ Checkout source
         uses: actions/checkout@v4
 
       - name: 🔐 Run Vulnerable Package Scan
-        uses: sudeshgutta/secure-scan-action@v1.0.0
+        uses: ./
+        continue-on-error: true   # exit code 2 (findings) must not skip SARIF upload
+        with:
+          severity: "HIGH,CRITICAL"
+          sarif-output: "results.sarif"
+
+      - name: 📤 Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ github.workspace }}/results.sarif
