@@ -34,24 +34,12 @@ COPY --from=trivy-stage /usr/local/bin/trivy /usr/local/bin/trivy
 # Ensure binaries are executable
 RUN chmod +x /usr/local/bin/scanner /usr/local/bin/trivy
 
-# Create non-root user for security
-RUN useradd -r -s /bin/false -U scanner
-
-# Set up working directory and cache directories with proper permissions
-RUN mkdir -p /home/scanner/.cache/trivy && \
-    mkdir -p /tmp/trivy && \
-    chown -R scanner:scanner /home/scanner && \
-    chown -R scanner:scanner /tmp/trivy && \
-    chmod -R 755 /home/scanner/.cache && \
-    chmod -R 755 /tmp/trivy
-
-# Switch to non-root user
-USER scanner
-WORKDIR /home/scanner
+# Use /tmp for cache directories (writable by any user)
+RUN mkdir -p /tmp/trivy
 
 # Set environment variables for cache directories
-ENV TRIVY_CACHE_DIR=/home/scanner/.cache/trivy
-ENV XDG_CACHE_HOME=/home/scanner/.cache
+ENV TRIVY_CACHE_DIR=/tmp/trivy
+ENV XDG_CACHE_HOME=/tmp
 
 LABEL org.opencontainers.image.title="Secure Scan Action"
 LABEL org.opencontainers.image.description="A GitHub Action for scanning vulnerabilities using Trivy and finding their usage with AST-Grep"
@@ -60,5 +48,9 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 # Verify all tools work
 RUN trivy --version && sg --version
+
+# GitHub Actions mounts the workspace at /github/workspace; writing here makes
+# output files (e.g. results.sarif) visible on the host runner after container exit.
+WORKDIR /github/workspace
 
 ENTRYPOINT ["/usr/local/bin/scanner"]

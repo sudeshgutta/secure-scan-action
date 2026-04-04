@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"os"
-	"path/filepath"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep"
 	"github.com/sudeshgutta/secure-scan-action/internal/logger"
@@ -31,13 +30,6 @@ func main() {
 	report.Print(findings, os.Stdout)
 
 	if sarifPath := os.Getenv("INPUT_SARIF_OUTPUT"); sarifPath != "" {
-		// Docker actions run in a container; relative paths resolve inside the container.
-		// Anchor to GITHUB_WORKSPACE so the file is visible on the host runner after exit.
-		if !filepath.IsAbs(sarifPath) {
-			if ws := os.Getenv("GITHUB_WORKSPACE"); ws != "" {
-				sarifPath = filepath.Join(ws, sarifPath)
-			}
-		}
 		if err := sarif.Write(findings, sarifPath); err != nil {
 			logger.Log.Warn("Failed to write SARIF output", "path", sarifPath, "error", err)
 		} else {
