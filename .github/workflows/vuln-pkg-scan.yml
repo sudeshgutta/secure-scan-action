@@ -11,6 +11,8 @@ jobs:
     permissions:
       security-events: write   # required to upload SARIF to GitHub Security tab
       contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: ⬇️ Checkout source
