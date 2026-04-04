@@ -15,11 +15,13 @@ var templateFS embed.FS
 // nonIDRe matches any character that is not safe for an ast-grep rule id.
 var nonIDRe = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
-// yamlDQReplacer escapes strings for safe embedding in YAML double-quoted scalars.
-var yamlDQReplacer = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", "", "\r", "")
-
 func sanitizeID(s string) string   { return nonIDRe.ReplaceAllString(s, "-") }
-func yamlDQEscape(s string) string { return yamlDQReplacer.Replace(s) }
+func yamlDQEscape(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	s = strings.NewReplacer("\n", "", "\r", "", "\t", "", "\x00", "").Replace(s)
+	return s
+}
 
 // RuleData holds the values substituted into a YAML rule template.
 type RuleData struct {

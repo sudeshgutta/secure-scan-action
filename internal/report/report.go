@@ -57,10 +57,14 @@ func Print(findings []astgrep.Finding, w io.Writer) {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if n <= 1 {
+		return "…"
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
+	return string(runes[:n-1]) + "…"
 }
 
 func writeSummary(md string) {
@@ -70,8 +74,11 @@ func writeSummary(md string) {
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "warn: could not open GITHUB_STEP_SUMMARY: %v\n", err)
 		return
 	}
 	defer f.Close()
-	fmt.Fprint(f, md)
+	if _, err := fmt.Fprint(f, md); err != nil {
+		fmt.Fprintf(os.Stderr, "warn: could not write GITHUB_STEP_SUMMARY: %v\n", err)
+	}
 }

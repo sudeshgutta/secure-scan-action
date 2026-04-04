@@ -42,7 +42,7 @@ func isTestFile(path string) bool {
 		strings.HasPrefix(base, "test_") ||
 		strings.HasSuffix(base, "_test.py") ||
 		strings.HasSuffix(base, "Test.java") ||
-		strings.HasPrefix(base, "Test")
+		(strings.HasPrefix(base, "Test") && strings.HasSuffix(base, ".java"))
 }
 
 // computeReachability scores how reachable a package is based on how many

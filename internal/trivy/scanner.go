@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -41,10 +42,16 @@ func Scan(ctx context.Context) (*TrivyReport, error) {
 
 	logger.Log.Debug("executing trivy binary...")
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		if stderr.Len() > 0 {
+			return nil, fmt.Errorf("trivy: %w: %s", err, stderr.String())
+		}
+		return nil, fmt.Errorf("trivy: %w", err)
 	}
 
 	logger.Log.Debug("parsing trivy scan results...")
+	if stdout.Len() == 0 {
+		return nil, fmt.Errorf("trivy: empty output (stderr: %s)", stderr.String())
+	}
 	var report TrivyReport
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		return nil, err

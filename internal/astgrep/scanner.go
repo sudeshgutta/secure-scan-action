@@ -120,6 +120,17 @@ func extractVulnerablePackages(trivyReport trivy.TrivyReport) map[string]*pkgMet
 			if !exists {
 				meta = &pkgMeta{languages: languages}
 				pkgs[vuln.PkgName] = meta
+			} else {
+				// merge any new languages not already present
+				existingLangSet := make(map[string]struct{}, len(meta.languages))
+				for _, l := range meta.languages {
+					existingLangSet[l] = struct{}{}
+				}
+				for _, l := range languages {
+					if _, dup := existingLangSet[l]; !dup {
+						meta.languages = append(meta.languages, l)
+					}
+				}
 			}
 			if vuln.VulnerabilityID != "" {
 				meta.cveIDs = append(meta.cveIDs, vuln.VulnerabilityID)

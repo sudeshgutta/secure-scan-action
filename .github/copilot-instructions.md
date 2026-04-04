@@ -17,7 +17,7 @@ All non-trivial code changes follow a **coding → review → iterate** loop usi
 | Agent | Model | Role |
 |-------|-------|------|
 | **coding-agent** | `claude-haiku-4.5` | Implements the change: writes/edits Go source, tests, and docs |
-| **review-agent** | `claude-opus-4.5` | Reviews the diff produced by the coding agent; reports bugs, security issues, and logic errors only — no style comments |
+| **review-agent** | `claude-opus-4.6` | Reviews the diff produced by the coding agent; reports bugs, security issues, and logic errors only — no style comments |
 
 ### Workflow
 

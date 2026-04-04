@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/sudeshgutta/secure-scan-action/internal/astgrep"
@@ -143,10 +144,6 @@ func buildRulesAndResults(findings []astgrep.Finding) ([]sarifRule, []sarifResul
 				continue
 			}
 			for _, file := range f.DetectionResult.UniqueFiles {
-				line := 1
-				if f.DetectionResult.FirstMatch != nil && f.DetectionResult.FirstMatch.Line > 0 {
-					line = f.DetectionResult.FirstMatch.Line
-				}
 				results = append(results, sarifResult{
 					RuleID: cve,
 					Level:  severityToLevel(f.Severity),
@@ -157,7 +154,7 @@ func buildRulesAndResults(findings []astgrep.Finding) ([]sarifRule, []sarifResul
 					Locations: []sarifLocation{{
 						PhysicalLocation: sarifPhysicalLocation{
 							ArtifactLocation: sarifArtifactLocation{URI: file, URIBaseID: "%SRCROOT%"},
-							Region:           sarifRegion{StartLine: line},
+							Region:           sarifRegion{StartLine: 1},
 						},
 					}},
 				})
@@ -170,5 +167,23 @@ func buildRulesAndResults(findings []astgrep.Finding) ([]sarifRule, []sarifResul
 	for _, r := range ruleSet {
 		ruleSlice = append(ruleSlice, r)
 	}
+	sort.Slice(ruleSlice, func(i, j int) bool { return ruleSlice[i].ID < ruleSlice[j].ID })
+
+	// Sort results by RuleID, then by URI for determinism
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].RuleID != results[j].RuleID {
+			return results[i].RuleID < results[j].RuleID
+		}
+		uri1 := ""
+		uri2 := ""
+		if len(results[i].Locations) > 0 {
+			uri1 = results[i].Locations[0].PhysicalLocation.ArtifactLocation.URI
+		}
+		if len(results[j].Locations) > 0 {
+			uri2 = results[j].Locations[0].PhysicalLocation.ArtifactLocation.URI
+		}
+		return uri1 < uri2
+	})
+
 	return ruleSlice, results
 }
