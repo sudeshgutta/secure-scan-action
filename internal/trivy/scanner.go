@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 const (
 	TRIVY_TIMEOUT       time.Duration = 120 * time.Second
 	TRIVY_SCAN_PATH     string        = "."
-	TRIVY_SEVERITY      string        = "HIGH"
+	TRIVY_SEVERITY      string        = "HIGH,CRITICAL"
 	TRIVY_OUTPUT_FORMAT string        = "json"
 )
 
@@ -21,12 +22,17 @@ func Scan(ctx context.Context) (*TrivyReport, error) {
 	ctx, cancel := context.WithTimeout(ctx, TRIVY_TIMEOUT)
 	defer cancel()
 
+	severity := os.Getenv("INPUT_SEVERITY")
+	if severity == "" {
+		severity = TRIVY_SEVERITY
+	}
+
 	var stdout, stderr bytes.Buffer
 	logger.Log.Debug("starting trivy scan...")
 
 	cmd := exec.CommandContext(ctx, "trivy", "fs",
 		"--exit-code", "0",
-		"--severity", TRIVY_SEVERITY,
+		"--severity", severity,
 		"--format", TRIVY_OUTPUT_FORMAT,
 		TRIVY_SCAN_PATH,
 	)

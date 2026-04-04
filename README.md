@@ -17,6 +17,8 @@ jobs:
   vuln-pkg-scan:
     name: Vulnerable Package Scan Job
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload SARIF
 
     steps:
       - name: Checkout source
@@ -24,23 +26,36 @@ jobs:
 
       - name: Run Vulnerable Package Scan
         uses: sudeshgutta/secure-scan-action@v1.0.0-beta
+        with:
+          severity: "HIGH,CRITICAL"      # optional, this is the default
+          sarif-output: "results.sarif"  # optional, set empty to disable
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
 ```
 
 ## Features
 
 - **Multi-language support**: Scans Go, JavaScript, TypeScript, Python, and Java codebases
-- **Vulnerability scanning**: Uses Trivy to detect `HIGH` and `CRITICAL` CVEs in dependencies
+- **Vulnerability scanning**: Uses Trivy to detect `HIGH` and `CRITICAL` CVEs in dependencies (configurable)
 - **Usage analysis**: Uses AST-Grep to find exactly where vulnerable packages are imported in your source code -- no false alarms from transitive-only dependencies
+- **Reachability scoring**: Rates each finding LOW / MEDIUM / HIGH based on how many non-test source files import the vulnerable package
+- **SARIF output**: Writes a SARIF 2.1.0 report (default `results.sarif`) that the GitHub Security tab can ingest natively
+- **Step summary**: Prints a formatted findings table to the GitHub Actions job summary (`$GITHUB_STEP_SUMMARY`)
 - **Ecosystem-aware**: Automatically maps Trivy ecosystems (`gomod`, `npm`, `yarn`, `pnpm`, `pip`, `poetry`, `uv`, `pom`, `gradle`, ...) to the correct language scanner
 - **Containerized**: Runs in a secure Docker container with all tools pre-installed; no setup required
 - **Non-root**: Container runs as an unprivileged `scanner` user
 
 ## How It Works
 
-1. **Trivy scan** -- scans the checked-out repository for known `HIGH`/`CRITICAL` CVEs across all supported ecosystems
-2. **Package extraction** -- deduplicates vulnerable package names and resolves which language(s) to scan for each ecosystem
+1. **Trivy scan** -- scans the checked-out repository for CVEs at your configured severity threshold across all supported ecosystems
+2. **Package extraction** -- deduplicates vulnerable package names, collects CVE IDs + worst severity, and resolves which language(s) to scan for each ecosystem
 3. **AST-Grep analysis** -- for each vulnerable package/language pair, renders an inline YAML rule and runs `sg scan` against the source tree
-4. **Result reporting** -- prints file locations of actual usages; exits with a non-zero code so CI can gate on real risk
+4. **Reachability scoring** -- counts unique non-test source files that import each vulnerable package (LOW / MEDIUM / HIGH)
+5. **Result reporting** -- prints a findings table to stdout and the GitHub Actions job summary; writes a SARIF file; exits `2` if any findings are found
 
 ## Supported Languages & Ecosystems
 
@@ -51,6 +66,13 @@ jobs:
 | TypeScript | `npm`, `yarn`, `pnpm`, `node-pkg`         | `import` statements         |
 | Python     | `pip`, `poetry`, `pipenv`, `uv`           | `import` / `from ... import`|
 | Java       | `pom`, `gradle`, `gradle-lockfile`        | `import` declarations       |
+
+## Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `severity` | `HIGH,CRITICAL` | Comma-separated Trivy severity levels to scan for (e.g. `MEDIUM,HIGH,CRITICAL`) |
+| `sarif-output` | `results.sarif` | Path for the SARIF 2.1.0 output file. Set to empty string to disable SARIF output. |
 
 ## Exit Codes
 
@@ -85,9 +107,11 @@ secure-scan-action/
 │   │   │   ├── templates/     # YAML rule templates per language (go.yml, javascript.yml, ...)
 │   │   │   ├── dispatcher.go  # BuildRule() + ecosystem-to-language mapping
 │   │   │   └── render.go      # Template renderer with YAML-injection protection
-│   │   ├── scanner.go         # Orchestrates Trivy report -> AST-Grep scans
+│   │   ├── scanner.go         # Orchestrates Trivy report -> AST-Grep scans -> []Finding
 │   │   ├── analyzer.go        # Parses and aggregates AST-Grep matches
-│   │   └── types.go           # ASTGrepMatch, PackageDetectionResult
+│   │   └── types.go           # ASTGrepMatch, PackageDetectionResult, Finding, ReachabilityScore
+│   ├── sarif/                 # SARIF 2.1.0 writer (internal/sarif/sarif.go)
+│   ├── report/                # Console + step summary reporter (internal/report/report.go)
 │   ├── trivy/                 # Trivy CLI wrapper and report types
 │   └── logger/                # JSON structured logging (log/slog)
 ├── main.go                    # Entry point

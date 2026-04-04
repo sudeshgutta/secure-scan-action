@@ -6,6 +6,74 @@ import (
 	"time"
 )
 
+// ReachabilityScore indicates how widely a vulnerable package is used in non-test source files.
+type ReachabilityScore int
+
+const (
+	ReachabilityLow    ReachabilityScore = 1 // imported only in test files
+	ReachabilityMedium ReachabilityScore = 2 // 1-2 non-test source files
+	ReachabilityHigh   ReachabilityScore = 3 // 3+ non-test source files
+)
+
+func (r ReachabilityScore) String() string {
+	switch r {
+	case ReachabilityLow:
+		return "LOW"
+	case ReachabilityMedium:
+		return "MEDIUM"
+	case ReachabilityHigh:
+		return "HIGH"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// isTestFile returns true if the file path looks like a test file across supported languages.
+func isTestFile(path string) bool {
+	base := path
+	if i := strings.LastIndexByte(path, '/'); i >= 0 {
+		base = path[i+1:]
+	}
+	return strings.HasSuffix(base, "_test.go") ||
+		strings.HasSuffix(base, ".test.ts") ||
+		strings.HasSuffix(base, ".spec.ts") ||
+		strings.HasSuffix(base, ".test.js") ||
+		strings.HasSuffix(base, ".spec.js") ||
+		strings.HasPrefix(base, "test_") ||
+		strings.HasSuffix(base, "_test.py") ||
+		strings.HasSuffix(base, "Test.java") ||
+		strings.HasPrefix(base, "Test")
+}
+
+// computeReachability scores how reachable a package is based on how many
+// non-test source files import it.
+func computeReachability(files []string) ReachabilityScore {
+	count := 0
+	for _, f := range files {
+		if !isTestFile(f) {
+			count++
+		}
+	}
+	switch {
+	case count == 0:
+		return ReachabilityLow
+	case count <= 2:
+		return ReachabilityMedium
+	default:
+		return ReachabilityHigh
+	}
+}
+
+// Finding is an enriched scan result combining CVE metadata with AST-Grep detection.
+type Finding struct {
+	Package           string
+	Language          string
+	CVEIDs            []string
+	Severity          string // worst severity across all CVEs for this package
+	DetectionResult   *PackageDetectionResult
+	ReachabilityScore ReachabilityScore
+}
+
 // ASTGrepMatch represents a single match found by AST-Grep.
 type ASTGrepMatch struct {
 	Text   string `json:"text"`

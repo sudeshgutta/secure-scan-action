@@ -1,8 +1,20 @@
 name: "Secure Scan Action"
 description: "Scans your repository for security vulnerabilities using Trivy and analyzes vulnerable package(s) usage with AST-Grep"
+inputs:
+  severity:
+    description: "Comma-separated Trivy severity levels to report (e.g. HIGH,CRITICAL)"
+    required: false
+    default: "HIGH,CRITICAL"
+  sarif-output:
+    description: "Path to write SARIF output file. Leave empty to disable SARIF."
+    required: false
+    default: "results.sarif"
 runs:
   using: "docker"
   image: "Dockerfile"
+  env:
+    INPUT_SEVERITY: ${{ inputs.severity }}
+    INPUT_SARIF_OUTPUT: ${{ inputs.sarif-output }}
 branding:
   icon: 'shield'
   color: 'green'

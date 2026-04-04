@@ -8,6 +8,7 @@ import (
 )
 
 // AnalyzePackageMatches analyzes AST-Grep output for a specific package.
+// Returns the detection result; reachability is computed separately via computeReachability.
 func AnalyzePackageMatches(matches []ASTGrepMatch, pkg string) *PackageDetectionResult {
 	logger.Log.Debug("analysing astgrep result")
 
